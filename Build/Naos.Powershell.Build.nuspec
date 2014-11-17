@@ -1,0 +1,22 @@
+﻿<?xml version="1.0"?>
+<package>
+  <metadata>
+    <id>Naos.Powershell.Build</id>
+    <version>$version$</version>
+    <authors>Naos LLC</authors>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>The basic build tools for Continuous Integration.</description>
+    <copyright>Copyright 2014 Naos LLC</copyright>
+    <licenseUrl>http://www.naosllc.com</licenseUrl>
+    <tags>Powershell, CI, Build, Naos</tags>
+  </metadata>  
+  <files>
+    <file src="Build.ps1" target="scripts" />
+    <file src="MsBuild-Functions.ps1" target="scripts" />
+    <file src="NuGet-Functions.ps1" target="scripts" />
+    <file src="Version-Functions.ps1" target="scripts" />
+    <file src="FileSystem-Functions.ps1" target="scripts" />
+    <file src="Help-Functions.ps1" target="scripts" />
+    <file src="LocalFileSystemDeploy.pubxml" target="scripts" />
+  </files>  
+</package>
