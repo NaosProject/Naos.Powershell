@@ -180,12 +180,13 @@ function GitUp()
     while ( $LASTEXITCODE -ne 0 )
     
     # delete the local branch
-    Write-Host "Delete $($Branch)..." -ForegroundColor "yellow"
+    Write-Host "Deleting local branch $($branch)..." -ForegroundColor "yellow"
     Invoke-Expression "git branch -d '$($branch)'"    
 
     # delete the remote branch
     if ( RemoteBranchExists $branch )
     {
+        Write-Host "Deleting remote branch origin/$($branch)..." -ForegroundColor "yellow"
         do { Invoke-Expression "git push origin --delete '$($branch)'" }
         while ( $LASTEXITCODE -ne 0 )        
     }
