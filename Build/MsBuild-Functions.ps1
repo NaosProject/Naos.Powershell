@@ -30,7 +30,7 @@ function MsBuild-BuildDebug([string] $solutionFilePath)
 
 function MsBuild-PublishToFileSystem([string] $projectFilePath, [string] $outputFilePath, [string] $pubXmlFilePath)
 {
-	&$MsBuildExeFilePath "$projectFilePath" "/target:WebPublish" "/property:VisualStudioVersion=11.0" "/property:Configuration=release" "/property:DebugType=pdbonly" "/verbosity:$msbuildVerbosityLevel" "/property:PublishProfile=$pubXmlFilePath" "/property:publishUrl=$outputFilePath"
+    &$MsBuildExeFilePath "$projectFilePath" "/target:WebPublish" "/property:VisualStudioVersion=12.0" "/property:Configuration=release" "/property:DebugType=pdbonly" "/verbosity:$msbuildVerbosityLevel" "/property:PublishProfile=$pubXmlFilePath" "/property:publishUrl=$outputFilePath"
 	if(($lastExitCode -ne 0) -and (-not $ContinueOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to  MsBuild PublishToFileSystem" }
 }
 

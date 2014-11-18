@@ -11,6 +11,21 @@ The path that the GIT repo is pulled to (must only contain ONE solution file).
 .PARAMETER Version
 The FOUR part version to use for versioning.
 
+.PARAMETER BranchName
+The branch name (if applicable) of the source being built, this will be added to the package version as a pre-release if not 'master' or blank.
+
+.PARAMETER GalleryUrl
+The url of the NuGet gallery to update packages from (if applicable) and push packages into.
+
+.PARAMETER GalleryApiKey
+The api key of the NuGet gallery to push packages to (if not present the push will not be performed).
+
+.PARAMETER PackageUpdateStrategyPrivateGallery
+Ability to specify whether NuGet packages from the private gallery are updated or not [None, UpdateSafe, UpdateNormal, UpdatePreRelease] (None is default).
+
+.PARAMETER PackageUpdateStrategyPublicGallery
+Ability to specify whether NuGet packages from the public gallery are updated or not [None, UpdateSafe, UpdateNormal, UpdatePreRelease] (None is default).
+
 .PARAMETER LocalPackagesDirectory
 A directory to output nuget packages to on the local machine.
 
@@ -18,18 +33,24 @@ A directory to output nuget packages to on the local machine.
 The action switch to enable running (prevent double click execution).
 
 .EXAMPLE
-.\Build.ps1 -SourceDirectory 'C:\Temp\Utils.Db.Lib -Version 1.0.23.1 -Run
+.\Build.ps1 -SourceDirectory 'C:\Temp\Utils.Db.Lib' -Version 1.0.23 -Run
 
 .EXAMPLE
-.\Build.ps1 -SourceDirectory 'C:\Temp\Utils.Db.Lib -Version 1.0.23.1 -PackagesOutputDirectory C:\MyNugetPackages -Run
+.\Build.ps1 -SourceDirectory 'C:\Temp\Utils.Db.Lib' -BranchName testing_my_changes -Version 1.0.23 -Run  # Effective package version will be 1.0.23-testing_my_changes
+
+.EXAMPLE
+.\Build.ps1 -SourceDirectory 'C:\Temp\Utils.Db.Lib' -Version 1.0.23 -PackagesOutputDirectory C:\MyNugetPackages -Run
 
 #>
 param(	
 		[string] $Version,
 		[string] $SourceDirectory,
+		[string] $BranchName,
 		[string] $GalleryUrl,
 		[string] $GalleryApiKey,
 		[string] $PackagesOutputDirectory,
+		[string] $PackageUpdateStrategyPrivateGallery,
+		[string] $PackageUpdateStrategyPublicGallery,
 		[switch] $Run
 )
 
@@ -70,24 +91,65 @@ try
 	Version-CheckVersion $Version
 
 # Assign Global Variables
-	$dirPushed = $true
+	if ([String]::IsNullOrEmpty($PackageUpdateStrategyPublicGallery))
+	{
+		$PackageUpdateStrategyPublicGallery = $nuGetConstants.UpdateStrategy.None
+	}
+
+	if ([String]::IsNullOrEmpty($PackageUpdateStrategyPrivateGallery))
+	{
+		$PackageUpdateStrategyPrivateGallery = $nuGetConstants.UpdateStrategy.None
+	}
+	
+	if (($PackageUpdateStrategyPrivateGallery -ne $nuGetConstants.UpdateStrategy.None) -and ([string]::IsNullOrEmpty($GalleryUrl)))
+	{
+		throw "Must specify the private gallery url if using an update strategy for the private gallery."
+	}
+	
+	$informationalVersion = $Version
+	if ((-not [String]::IsNullOrEmpty($BranchName)) -and ($BranchName -ne 'master'))
+	{
+		$cleanBranchName = $BranchName.Replace('_', '').Replace('-', '').Replace(' ', '').Replace('+', '')
+		if ($cleanBranchName.Length -gt 20)
+		{
+			$cleanBranchName = $cleanBranchName.Substring(0, 20)
+		}
+		
+		$informationalVersion = "$Version-$cleanBranchName"
+	}
+	
 	$projectFilePaths = MsBuild-GetProjectsFromSolution -solutionFilePath $solutionFilePath
 	$pkgFiles = ls $SourceDirectory -filter packages.config -recurse | %{if(Test-Path($_.FullName)){$_.FullName}}
-	$pkgDir = [System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($solutionFilePath), 'packages')
+	$pkgDir = Join-Path (Split-Path $solutionFilePath) 'packages'
 	$innerPackageDirForWebPackage = 'packagedWebsite' # this value must match whats in the remote deployment script logic in Deploy-Functions.ps1 (Deploy-GetWebsiteDeploymentScriptContents)
 	$fileSystemPublishFilePath = Join-Path $scriptsPath 'LocalFileSystemDeploy.pubxml'
 	$neccessaryFrameworkVersionForPublish = 4.5
 	$createdPackagePaths = New-Object 'System.Collections.Generic.List[String]'
 
 # Push to calling directory
+	$dirPushed = $true
 	pushd $SourceDirectory
 	 
 $scriptStartTime = [System.DateTime]::Now
 Write-Output "BEGIN Build : $($scriptStartTime.ToString('yyyyMMdd-HHmm'))"
 
-Write-Output "BEGIN Get Missing NuGet"
+Write-Output "BEGIN Get Missing NuGet Packages"
+
 		NuGet-InstallMissingPackages -pkgFiles $pkgFiles -outputDir $pkgDir
-Write-Output "END Get Missing NuGet"
+		
+		if ($PackageUpdateStrategyPrivateGallery -ne $nuGetConstants.UpdateStrategy.None)
+		{
+			NuGet-UpdatePackagesInSolution -solutionFile $solutionFilePath -updateStrategy $PackageUpdateStrategyPrivateGallery -source $GalleryUrl
+			NuGet-InstallMissingPackages -pkgFiles $pkgFiles -outputDir $pkgDir # run into scenarios when it will update correctly but not leave the package installed (so safety net...)
+		}
+		
+		if ($PackageUpdateStrategyPublicGallery -ne $nuGetConstants.UpdateStrategy.None)
+		{
+			NuGet-UpdatePackagesInSolution -solutionFile $solutionFilePath -updateStrategy $PackageUpdateStrategyPublicGallery -source $nuGetConstants.Galleries.Public
+			NuGet-InstallMissingPackages -pkgFiles $pkgFiles -outputDir $pkgDir # run into scenarios when it will update correctly but not leave the package installed (so safety net...)
+		}
+		
+Write-Output "END Get Missing NuGet Packages"
 
 
 Write-Output "BEGIN Update AssemblyInfo's"
@@ -97,7 +159,7 @@ Write-Output "BEGIN Update AssemblyInfo's"
 		File-RemoveReadonlyFlag -files $asmInfos
 			  
 		Write-Output "   Writing the version: $Version to all assembly info files."
-		Version-UpdateAssemblyInfos -asmInfos $asmInfos -version $Version
+		Version-UpdateAssemblyInfos -asmInfos $asmInfos -version $Version -informationalVersion $informationalVersion
 Write-Output "END Update AssemblyInfo's"
 
 Write-Output 'BEGIN Cleaning Release For All Projects'
@@ -194,7 +256,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 			}
 			
 
-			$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -Version $Version -throwOnError $true -outputDirectory $PackagesOutputDirectory
+			$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
 
 			$createdPackagePaths.Add($packageFile)
 			
@@ -207,7 +269,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		else
 		{
 			# if manual created file then always use; for auto-create - skipping everything except libraries right now
-			Write-Output "   Skipping $projFilePath because this project was detected as a test library or non-published web project, or an existing NuSpec file was not found at ($nuSpecFilePath)"
+			Write-Output "   Skipping $projFilePath because this project was detected as a i) test library (EndsWith 'Test.csproj'), ii) non-published web project, iii) an existing NuSpec file was not found at ($nuSpecFilePath)"
 		}
 	}
 Write-Output 'END Create NuGet Packages'

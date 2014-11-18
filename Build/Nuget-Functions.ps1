@@ -1,3 +1,17 @@
+$nuGetConstants = @{
+    UpdateStrategy = @{
+		None = 'None';
+        UpdateSafe = 'UpdateSafe';
+        UpdateNormal = 'UpdateNormal';
+        UpdatePreRelease = 'UpdatePreRelease';
+	}
+	
+	Galleries = @{
+		Public = 'nuget.org'
+	}
+}
+
+
 # Assign Global Variables
      $nugetVerbosityLevel = 'detailed' #quiet, normal, detailed
      $nugetFileConflictAction = 'Overwrite' #Overwrite, Ignore
@@ -35,18 +49,26 @@ function NuGet-UpdatePackages([System.Array] $pkgFiles, [bool] $throwOnError = $
 	}
 }
 
-function NuGet-UpdatePackagesInSolution([string] $solutionFile, [bool] $safeOnly = $false, [bool] $throwOnError = $true)
+function NuGet-UpdatePackagesInSolution([string] $solutionFile, [string] $updateStrategy, [string] $source, [bool] $throwOnError = $true)
 {
-	Write-Host '   NuGet Update Solution File'
-	if ($safeOnly)
+	Write-Output "   NuGet Update Solution File: $solutionFile"
+	if ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdateSafe)
 	{
-		Write-Host "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction"
-		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction
+		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction"
+		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction -Source $source
 	}
-	else
+	elseif ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdateNormal)
 	{
-		Write-Host "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction"
-		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction
+		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction"
+		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source
+	}
+	elseif ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdatePreRelease)
+	{
+		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction"
+		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source -Prerelease
+	}
+	else {
+		Write-Output "   Skipped update because updateStrategy was $updateStrategy"
 	}
 	
 	if(($lastExitCode -ne 0) -and ($throwOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to run NuGetCommand update on $solutionFile" }
