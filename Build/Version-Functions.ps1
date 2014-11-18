@@ -22,24 +22,33 @@ function Version-CheckValidTagVersion([string] $version, [bool] $throwOnInvalid 
 	return $valid
 }
 
-function Version-UpdateAssemblyInfos([System.Array] $asmInfos, [string] $version)
+function Version-UpdateAssemblyInfos([System.Array] $asmInfos, [string] $version, [string] $informationalVersion)
 {
 	if ($asmInfos -ne $null)
 	{
 		$newVersion = 'AssemblyVersion("' + $version + '")';
 		$newFileVersion = 'AssemblyFileVersion("' + $version + '")';
 		$newVersionAttribute = 'AssemblyVersionAttribute("' + $version + '")';
-
+		$newInformationalVersionAttributeContents = "AssemblyInformationalVersion(`"$informationalVersion`")"
+		$newInformationalVersionAttribute = "[assembly: $newInformationalVersionAttributeContents]"
+		
 		$asmInfos | %{
 			Write-Host "Updating file: $_ to $version"
 			$tempAsmInfo = $_ + ".tmp"
 			Write-Host $tempAsmInfo
 
-			Get-Content $_ | 
+			$asmFileName = $_
+			Get-Content $asmFileName | 
 				%{$_ -replace 'AssemblyVersion\("[0-9]+(\.([0-9]+|\*)){1,3}"\)', $newVersion }             				|
 					%{$_ -replace 'AssemblyVersionAttribute\("[0-9]+(\.([0-9]+|\*)){1,3}"\)', $newVersionAttribute }    |
 						 %{$_ -replace 'AssemblyFileVersion\("[0-9]+(\.([0-9]+|\*)){1,3}"\)', $newFileVersion } 		| 
+							%{$_ -replace 'AssemblyInformationalVersion\("(\d+\.)?(\d+\.)?(\d+\.)?(\d+)(-\w*)?"\)', $newInformationalVersionAttributeContents }	| 
 							  Out-File $tempAsmInfo
+
+		    if ((Get-Content $asmFileName | ?{$_.Contains($newInformationalVersionAttribute)}) -eq $null)
+			{
+				[Environment]::NewLine + $newInformationalVersionAttribute | Out-File $tempAsmInfo -Append
+			}
 
 			Move-Item $tempAsmInfo $_ -Force
 		}
