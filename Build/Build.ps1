@@ -269,7 +269,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		else
 		{
 			# if manual created file then always use; for auto-create - skipping everything except libraries right now
-			Write-Output "   Skipping $projFilePath because this project was detected as a test library or non-published web project, or an existing NuSpec file was not found at ($nuSpecFilePath)"
+			Write-Output "   Skipping $projFilePath because this project was detected as a i) test library (EndsWith 'Test.csproj'), ii) non-published web project, iii) an existing NuSpec file was not found at ($nuSpecFilePath)"
 		}
 	}
 Write-Output 'END Create NuGet Packages'
