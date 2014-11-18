@@ -46,12 +46,62 @@ function Validate-RepoState()
     return $null
 }
 
-function BranchUp()
+function Rebase([string] $UpstreamBranch)
+{
+    <#
+        .SYNOPSIS 
+        Performs a rebase
+        .PARAMETER UpstreamBranch
+        The name of the branch to rebase onto.
+        .INPUTS
+        No pipeline inputs accepted.
+        .OUTPUTS
+        Returns $null when complete.
+    #>
+
+    $branch = (Get-GitStatus).Branch
+
+    # rebase to ensure an easy merge from branch into master
+    # https://stackoverflow.com/questions/3921409/how-to-know-if-there-is-a-git-rebase-in-progress
+    # https://stackoverflow.com/questions/10032265/how-do-i-make-git-automatically-open-the-mergetool-if-there-is-a-merge-conflict
+    Write-Host "Rebase $($branch) onto $($UpstreamBranch)..." -ForegroundColor "yellow"
+    Invoke-Expression "git rebase '$($UpstreamBranch)'"
+    while ( (Get-GitStatus).Branch -like "*REBASE" )
+    {
+        git mergetool
+        git clean -d -f
+        git rebase --continue
+    }
+    
+    Write-Host "$($branch) has been fully rebased onto $($UpstreamBranch)." -ForegroundColor "yellow"
+    return $null
+}
+
+function RemoteBranchExists([string] $LocalBranchName)
+{
+    <#
+        .SYNOPSIS 
+        Determines if a remote branch for the given local branch.
+        .PARAMETER LocalBranchName
+        The name of the local branch.
+        .INPUTS
+        No pipeline inputs accepted.
+        .OUTPUTS
+        Returns $true if the remote branch exists, $false if not
+    #>
+
+    $remoteBranchExists = git branch -r | findstr "origin/$($LocalBranchName)"
+    return ( $remoteBranchExists -ne $null )    
+}
+
+function BranchUp([bool] $AllowPushToGitHub = $true)
 {
     <#
         .SYNOPSIS 
         Implements a simple git branching model described here: https://gist.github.com/jbenet/ee6c9ac48068889b0912
         Rebases master onto the current branch, iteratively calling the mergetool and continuing when there are merge conflicts.
+        .PARAMETER AllowPushToGitHub
+        Enables branch to be pushed to GitHub.  User will prompted to determine whether or not to push.
         .INPUTS
         No pipeline inputs accepted.
         .OUTPUTS
@@ -59,33 +109,44 @@ function BranchUp()
     #>
 
     # perform validation
-    Write-Host "Performing some validation..."
+    Write-Host "Performing some validation..." -ForegroundColor "yellow"
     Validate-RepoState
-
-    # ensure everything is up-to-date in master
     $branch = (Get-GitStatus).Branch
-    Write-Host "Update master with what's on GitHub..."
-    git checkout master
-    do { git pull origin master }
+
+    # update all branches tracking GitHub
+    # git fetch will pull all remote that are not yet tracked
+    # including the prune option in case any remote branches were deleted
+    Write-Host "Fetch everything from GitHub..." -ForegroundColor "yellow"
+    do { git fetch origin -p }
     while ( $LASTEXITCODE -ne 0 )
-    Invoke-Expression "git checkout '$($branch)'"
 
-    # rebase to ensure an easy merge from branch into master    
-    # https://stackoverflow.com/questions/3921409/how-to-know-if-there-is-a-git-rebase-in-progress
-    # https://stackoverflow.com/questions/10032265/how-do-i-make-git-automatically-open-the-mergetool-if-there-is-a-merge-conflict
-    Write-Host "Rebase master onto $($branch)..."
-    git rebase origin/master
-    while ( (Get-GitStatus).Branch -like "*REBASE" )
+    # rebase this local branch onto the same branch at GitHub (if it exists)
+    if ( RemoteBranchExists $branch )
     {
-        git mergetool
-        git clean -d -f
-        git rebase --continue
+        Rebase "origin/$($branch)"
     }
+    else
+    {
+        Write-Host "Skipping the rebase of $($branch) onto origin/$($branch).  The remote branch does not exist." -ForegroundColor "yellow"
+    }
+    
+    # rebase this local branch onto master at GitHub
+    Rebase "origin/master"
 
-    Write-Host "master has been fully rebased onto $($branch)."
+    # optionally push your branch to GitHub
+    if ( $AllowPushToGitHub )
+    {
+        Write-Host "Push this branch to GitHub?" -ForegroundColor "green"
+        do { $pushToGithub = Read-Host -Prompt "[Y]es [N]o" }
+        while ( $pushToGithub -notin ("y", "n") )
+        if ( $pushToGithub.ToLower() -eq "y" )
+        {
+            Invoke-Expression "git push origin '$($branch)'"
+        }
+    }
+    
     return $null
 }
-
 
 function GitUp()
 {
@@ -101,26 +162,33 @@ function GitUp()
     #>
 
     # setup branch for a clean merge into master
-    BranchUp
+    BranchUp -AllowPushToGitHub $false
     $branch = (Get-GitStatus).Branch
 
     # merge when done developing.
     # --no-ff preserves feature history and easy full-feature reverts
     # merge commits should not include changes; rebasing reconciles issues
-    Write-Host "Merging with master..."
+    Write-Host "Merging with master..." -ForegroundColor "yellow"
     git checkout master
     do { git pull origin master }
     while ( $LASTEXITCODE -ne 0 )
     Invoke-Expression "git merge --no-ff '$($branch)'"
 
     # push to github
-    Write-Host "Push master to GitHub..."  
+    Write-Host "Push master to GitHub..." -ForegroundColor "yellow"
     do { git push origin master }
     while ( $LASTEXITCODE -ne 0 )
     
-    # delete the branch
-    Write-Host "Delete $($Branch)..."
+    # delete the local branch
+    Write-Host "Delete $($Branch)..." -ForegroundColor "yellow"
     Invoke-Expression "git branch -d '$($branch)'"    
+
+    # delete the remote branch
+    if ( RemoteBranchExists $branch )
+    {
+        do { Invoke-Expression "git push origin --delete '$($branch)'" }
+        while ( $LASTEXITCODE -ne 0 )        
+    }
 
     return $null
 }
