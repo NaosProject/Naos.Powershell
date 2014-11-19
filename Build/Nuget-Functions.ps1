@@ -27,7 +27,7 @@ function NuGet-InstallMissingPackages([System.Array] $pkgFiles, [string] $output
 	
 	Write-Host '   NuGet install All package.config dependencies into packages directory'
 	$pkgFiles | %{
-		if (Test-Path $_)
+		if ((-not [String]::IsNullOrEmpty($_)) -and (Test-Path $_))
 		{
 			Write-Host "   Executing - $NuGetExeFilePath install $_ -OutputDirectory $outputDir"
 			&$NuGetExeFilePath install $_ -OutputDirectory $outputDir
