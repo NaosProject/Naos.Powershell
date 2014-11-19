@@ -75,6 +75,16 @@ try
         return;
     }
 
+	Write-Output "PARAMS"
+	Write-Output "   Version: $Version"
+	Write-Output "   SourceDirectory: $SourceDirectory"
+	Write-Output "   BranchName: $BranchName"
+	Write-Output "   GalleryUrl: $GalleryUrl"
+	Write-Output "   GalleryApiKey: $(Help-HideAllButLastChars -ValueToMask $GalleryApiKey -RemainingChars 5)"
+	Write-Output "   PackagesOutputDirectory: $PackagesOutputDirectory"
+	Write-Output "   PackageUpdateStrategyPrivateGallery: $PackageUpdateStrategyPrivateGallery"
+	Write-Output "   PackageUpdateStrategyPublicGallery: $PackageUpdateStrategyPublicGallery"
+	
     $scriptStartTime = [DateTime]::Now
     Write-Output "BEGIN Build.ps1 : $($scriptStartTime.ToString('yyyyMMdd-HHmm'))"
 
