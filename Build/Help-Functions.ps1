@@ -266,3 +266,36 @@ function Help-WriteScriptUsageBlock(
     Write-Host "$( New-Object String("-" , $CommentBlockWidth) )"
 
 }
+
+function Help-HideAllButLastChars([string] $ValueToMask, [int] $RemainingChars)
+{
+    <#
+        .SYNOPSIS 
+        Will replace all but the 'RemainingChars' in the provided string with *'s.
+        .PARAMETER ValueToMask
+        The string to hide characters in.
+        .PARAMETER RemainingChars
+        The number of characters to leave at the end unmasked.
+        .INPUTS
+        No pipeline inputs accepted.
+        .OUTPUTS
+        [string] Returns the masked string value.
+        .EXAMPLE
+        $val = Help-HideAllButLastChars -ValueToMask 'MyPassword' -RemainingChars 3
+        $val will be "*******ord"
+    #>
+	
+	[string] $ret = $null
+	if (($ValueToMask -eq $null) -or ($ValueToMask.Length -le $RemainingChars))
+	{
+		$ret = '*'
+	}
+	else
+	{
+		$stars = (New-Object System.String('*', ($ValueToMask.Length-$RemainingChars))).ToString()
+		$lastN = $ValueToMask.SubString(($ValueToMask.Length-$RemainingChars), $RemainingChars)
+		$ret =  "$stars$lastN"
+	}
+	
+    return $ret
+}
