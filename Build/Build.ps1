@@ -199,11 +199,11 @@ Write-Output 'BEGIN Building Release For All Projects'
 	$msBuildReleasePropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
 	$msBuildReleasePropertiesDictionary.Add('Configuration', 'release')
 	$msBuildReleasePropertiesDictionary.Add('DebugType', 'pdbonly')
-	$msBuildDebugPropertiesDictionary.Add('StyleCopTreatErrorsAsWarnings', $styleCopWarningsAsErrors)
-	$msBuildDebugPropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
-	$msBuildDebugPropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
-	$msBuildDebugPropertiesDictionary.Add('BuildRootPath', $buildScriptsPath)
-	$msBuildDebugPropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
+	$msBuildReleasePropertiesDictionary.Add('StyleCopTreatErrorsAsWarnings', $styleCopWarningsAsErrors)
+	$msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
+	$msBuildReleasePropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
+	$msBuildReleasePropertiesDictionary.Add('BuildRootPath', $buildScriptsPath)
+	$msBuildReleasePropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
 	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildDebugPropertiesDictionary
 Write-Output 'END Building Release For All Projects'
 
