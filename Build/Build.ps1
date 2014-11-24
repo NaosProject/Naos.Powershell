@@ -92,6 +92,7 @@ try
 	Write-Output "   PackagesOutputDirectory: $PackagesOutputDirectory"
 	Write-Output "   PackageUpdateStrategyPrivateGallery: $PackageUpdateStrategyPrivateGallery"
 	Write-Output "   PackageUpdateStrategyPublicGallery: $PackageUpdateStrategyPublicGallery"
+	Write-Output "   StyleCopTargetsPath: $StyleCopTargetsPath"
 	Write-Output "   TreatBuildWarningsAsErrors: $TreatBuildWarningsAsErrors"
 	
     $scriptStartTime = [DateTime]::Now
