@@ -29,6 +29,12 @@ Ability to specify whether NuGet packages from the public gallery are updated or
 .PARAMETER LocalPackagesDirectory
 A directory to output nuget packages to on the local machine.
 
+.PARAMETER StyleCopTargetsPath
+The filepath to the StyleCop targets file to run stylecop during build.
+
+.PARAMETER TreatBuildWarningsAsErrors
+Will cause any warnings from the build to be displayed as errors and will fail the build.
+
 .PARAMETER Run
 The action switch to enable running (prevent double click execution).
 
@@ -51,6 +57,8 @@ param(
 		[string] $PackagesOutputDirectory,
 		[string] $PackageUpdateStrategyPrivateGallery,
 		[string] $PackageUpdateStrategyPublicGallery,
+		[string] $StyleCopTargetsPath,
+		[bool] $TreatBuildWarningsAsErrors,
 		[switch] $Run
 )
 
@@ -61,12 +69,12 @@ try
     $currentScriptPath = ((Get-Variable MyInvocation -Scope 0).Value).MyCommand.Path
 
     # dot source some standard reusable methods
-    $scriptsPath = Split-Path $currentScriptPath
-	. (Join-Path $scriptsPath MsBuild-Functions.ps1)
-	. (Join-Path $scriptsPath NuGet-Functions.ps1)
-	. (Join-Path $scriptsPath Version-Functions.ps1)
-	. (Join-Path $scriptsPath FileSystem-Functions.ps1)
-	. (Join-Path $scriptsPath Help-Functions.ps1)
+    $buildScriptsPath = Split-Path $currentScriptPath
+	. (Join-Path $buildScriptsPath MsBuild-Functions.ps1)
+	. (Join-Path $buildScriptsPath NuGet-Functions.ps1)
+	. (Join-Path $buildScriptsPath Version-Functions.ps1)
+	. (Join-Path $buildScriptsPath FileSystem-Functions.ps1)
+	. (Join-Path $buildScriptsPath Help-Functions.ps1)
 
     if((-not $Run) -or ([String]::IsNullOrEmpty($SourceDirectory)) -or ([String]::IsNullOrEmpty($Version)))
     {
@@ -84,9 +92,9 @@ try
 	Write-Output "   PackagesOutputDirectory: $PackagesOutputDirectory"
 	Write-Output "   PackageUpdateStrategyPrivateGallery: $PackageUpdateStrategyPrivateGallery"
 	Write-Output "   PackageUpdateStrategyPublicGallery: $PackageUpdateStrategyPublicGallery"
+	Write-Output "   TreatBuildWarningsAsErrors: $TreatBuildWarningsAsErrors"
 	
     $scriptStartTime = [DateTime]::Now
-    Write-Output "BEGIN Build.ps1 : $($scriptStartTime.ToString('yyyyMMdd-HHmm'))"
 
 # Get solution file path
 	$solutionFilePath = File-FindSolutionFileUnderPath -path $SourceDirectory
@@ -132,9 +140,16 @@ try
 	$pkgFiles = ls $SourceDirectory -filter packages.config -recurse | %{if(Test-Path($_.FullName)){$_.FullName}}
 	$pkgDir = Join-Path (Split-Path $solutionFilePath) 'packages'
 	$innerPackageDirForWebPackage = 'packagedWebsite' # this value must match whats in the remote deployment script logic in Deploy-Functions.ps1 (Deploy-GetWebsiteDeploymentScriptContents)
-	$fileSystemPublishFilePath = Join-Path $scriptsPath 'LocalFileSystemDeploy.pubxml'
+	$fileSystemPublishFilePath = Join-Path $buildScriptsPath 'LocalFileSystemDeploy.pubxml'
 	$neccessaryFrameworkVersionForPublish = 4.5
 	$createdPackagePaths = New-Object 'System.Collections.Generic.List[String]'
+	$styleCopWarningsAsErrors = -not $TreatBuildWarningsAsErrors #stylecop uses inverted logic to define this...
+	$buildProjFile = Join-Path $buildScriptsPath 'Build.proj'
+	$localBuildProjFile = Join-Path $SourceDirectory 'Build.proj'
+	if (Test-Path $localBuildProjFile) #if there is one in the repo use it...
+	{
+		$buildProjFile = $localBuildProjFile
+	}
 
 # Push to calling directory
 	$dirPushed = $true
@@ -181,11 +196,26 @@ Write-Output 'BEGIN Cleaning Debug For All Projects'
 Write-Output 'END Cleaning Debug For All Projects'
 
 Write-Output 'BEGIN Building Release For All Projects'
-		MsBuild-BuildRelease -solutionFilePath $solutionFilePath
+	$msBuildReleasePropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
+	$msBuildReleasePropertiesDictionary.Add('Configuration', 'release')
+	$msBuildReleasePropertiesDictionary.Add('DebugType', 'pdbonly')
+	$msBuildDebugPropertiesDictionary.Add('StyleCopTreatErrorsAsWarnings', $styleCopWarningsAsErrors)
+	$msBuildDebugPropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
+	$msBuildDebugPropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
+	$msBuildDebugPropertiesDictionary.Add('BuildRootPath', $buildScriptsPath)
+	$msBuildDebugPropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
+	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildDebugPropertiesDictionary
 Write-Output 'END Building Release For All Projects'
 
 Write-Output 'BEGIN Building Debug For All Projects'
-		MsBuild-BuildDebug -solutionFilePath $solutionFilePath
+	$msBuildDebugPropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
+	$msBuildDebugPropertiesDictionary.Add('Configuration', 'debug')
+	$msBuildDebugPropertiesDictionary.Add('StyleCopTreatErrorsAsWarnings', $styleCopWarningsAsErrors)
+	$msBuildDebugPropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
+	$msBuildDebugPropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
+	$msBuildDebugPropertiesDictionary.Add('BuildRootPath', $buildScriptsPath)
+	$msBuildDebugPropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
+	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildDebugPropertiesDictionary
 Write-Output 'END Building Debug For All Projects'
 
 Write-Output 'BEGIN Publish All Web Projects'
@@ -291,7 +321,6 @@ Write-Output "BEGIN Push NuGet Packages to $GalleryUrl"
 			Write-Output "Pushing package $_"
 			Nuget-PublishPackage -packagePath $_ -apiUrl $GalleryUrl -apiKey $GalleryApiKey
 		}
-
 Write-Output 'END Push NuGet Packages'
 	}
 

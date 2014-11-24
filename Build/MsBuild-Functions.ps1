@@ -28,6 +28,22 @@ function MsBuild-BuildDebug([string] $solutionFilePath)
 	if(($lastExitCode -ne 0) -and (-not $ContinueOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to  MsBuild Build Debug" }
 }
 
+function MsBuild-Custom([string] $customBuildFilePath, [string] $target, [object] $customPropertiesDictionary)
+{
+    $paramString = "$customBuildFilePath /m /property:BuildInParallel=true /target:$target /verbosity:$msbuildVerbosityLevel"
+	
+	$customPropertiesDictionary.GetEnumerator() | %{
+		$paramString += " /property:$($_.Key)=$($_.Value)"
+	}
+	
+	$cmd = "$MsBuildExeFilePath $paramString"
+	Write-Output "Executing MsBuild Command: '$cmd'"
+	Write-Host '>BEGIN MsBuild-Custom' -ForegroundColor Cyan
+	Invoke-Expression $cmd
+	if(($lastExitCode -ne 0) -and (-not $ContinueOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to  MsBuild Build Release" }
+	Write-Host '<END MsBuild-Custom' -ForegroundColor Cyan
+}
+
 function MsBuild-PublishToFileSystem([string] $projectFilePath, [string] $outputFilePath, [string] $pubXmlFilePath)
 {
     &$MsBuildExeFilePath "$projectFilePath" "/target:WebPublish" "/property:VisualStudioVersion=12.0" "/property:Configuration=release" "/property:DebugType=pdbonly" "/verbosity:$msbuildVerbosityLevel" "/property:PublishProfile=$pubXmlFilePath" "/property:publishUrl=$outputFilePath"

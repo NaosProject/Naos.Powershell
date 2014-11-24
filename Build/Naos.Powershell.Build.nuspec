@@ -2,13 +2,16 @@
 <package>
   <metadata>
     <id>Naos.Powershell.Build</id>
-    <version>1.1.2</version>
+    <version>$version$</version>
     <authors>Naos LLC</authors>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>The basic build tools for Continuous Integration.</description>
     <copyright>Copyright 2014 Naos LLC</copyright>
     <licenseUrl>http://www.naosllc.com</licenseUrl>
     <tags>Powershell, CI, Build, Naos</tags>
+	<dependencies>
+		<dependency id="StyleCop.MSBuild" version="[4.7,5)" />
+	</dependencies>
   </metadata>  
   <files>
     <file src="Build.ps1" target="scripts" />
@@ -18,5 +21,10 @@
     <file src="FileSystem-Functions.ps1" target="scripts" />
     <file src="Help-Functions.ps1" target="scripts" />
     <file src="LocalFileSystemDeploy.pubxml" target="scripts" />
+    <file src="After.Microsoft.Common.targets" target="scripts" />
+    <file src="Build.proj" target="scripts" />
+    <file src="BuildHook.targets" target="scripts" />
+    <file src="MainBuild.targets" target="scripts" />
+    <file src="StyleCop.ProjectExtension.targets" target="scripts" />
   </files>  
 </package>

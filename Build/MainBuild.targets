@@ -1,0 +1,47 @@
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <!-- If this file changes force a rebuild -->
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <!-- To avoid circular imports, importers can use Condition="'$(MainBuildImported)' != 'true'" -->
+    <MainBuildImported>true</MainBuildImported>
+  </PropertyGroup>
+
+  <!-- This simply replicates the msbuild command line except that it overrides the
+       CustomAfterMicrosoftCommonTargets variable to point at .\After.Microsoft.Commmon.targets.
+       This means that whether the user enters via the command line build or via the BuildHook.targets
+       file when initiated through Visual Studio, all projects will use .\After.Microsoft.Commmon.targets. -->
+  <Target Name="PrepareBuildProperties">
+    <PropertyGroup>
+      <_BuildProperties>CustomAfterMicrosoftCommonTargets=$(BuildRootPath)After.Microsoft.Common.targets</_BuildProperties>
+      <_BuildProperties Condition="'$(SourceRootPath)' != ''">$(_BuildProperties);SourceRootPath=$(SourceRootPath)</_BuildProperties>
+      <_BuildProperties Condition="'$(BuildRootPath)' != ''">$(_BuildProperties);BuildRootPath=$(BuildRootPath)</_BuildProperties>
+      <_BuildProperties Condition="'$(Configuration)' != ''">$(_BuildProperties);Configuration=$(Configuration)</_BuildProperties>
+      <_BuildProperties Condition="'$(Platform)' != ''">$(_BuildProperties);Platform=$(Platform)</_BuildProperties>
+      <_BuildProperties Condition="'$(StyleCopImportsTargetsFilePath)' != ''">$(_BuildProperties);StyleCopImportsTargetsFilePath=$(StyleCopImportsTargetsFilePath)</_BuildProperties>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="Build" DependsOnTargets="PrepareBuildProperties">
+    <MSBuild Projects="@(Projects)" Properties="$(_BuildProperties)" Targets="Build" BuildInParallel="$(BuildInParallel)">
+      <Output TaskParameter="TargetOutputs" ItemName="CollectedBuildOutput" />
+    </MSBuild>
+  </Target>
+
+  <Target Name="Clean" DependsOnTargets="PrepareBuildProperties">
+    <MSBuild Projects="@(Projects)" Properties="$(_BuildProperties)" Targets="Clean" BuildInParallel="$(BuildInParallel)">
+      <Output TaskParameter="TargetOutputs" ItemName="CollectedBuildOutput" />
+    </MSBuild>
+  </Target>
+
+  <Target Name="Publish" DependsOnTargets="PrepareBuildProperties">
+    <MSBuild Projects="@(Projects)" Properties="$(_BuildProperties)" Targets="Publish" BuildInParallel="$(BuildInParallel)">
+      <Output TaskParameter="TargetOutputs" ItemName="CollectedBuildOutput" />
+    </MSBuild>
+  </Target>
+
+  <Target Name="Rebuild" DependsOnTargets="PrepareBuildProperties">
+    <MSBuild Projects="@(Projects)" Properties="$(_BuildProperties)" Targets="Rebuild" BuildInParallel="$(BuildInParallel)">
+      <Output TaskParameter="TargetOutputs" ItemName="CollectedBuildOutput" />
+    </MSBuild>
+  </Target>
+</Project>
