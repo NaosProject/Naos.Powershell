@@ -1,0 +1,26 @@
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- If this file changes force a rebuild -->
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+  </PropertyGroup>
+
+  <!-- There are two paths into this file:
+       1. User runs msbuild Build.proj which runs msbuild on a variety of .csproj files passing
+          in CustomAfterMicrosoftCommonTargets set to this file (see MainBuild.targets). 
+       2. User run msbuild of a .csproj file or a Visual Studio build of a .csproj file
+          In this case the Microsoft.CSharp.targets imports BuildHook.targets because it has
+          been installed to the local file system in a well-known path. This file sets
+          CustomAfterMicrosoftCommonTargets to this file.
+
+       At this point both the command line execution of msbuild Build.proj and Visual Studio
+       builds have been unified in how they import msbuild project files.
+  -->
+
+  <!-- Importing this file within the context of a project build to set the BuildRootPath and
+       import Build.proj without code repetition -->
+  <Import Project="$(MSBuildThisFileDirectory)BuildHook.targets" />
+
+  <!-- This is near the end of all our possible injection points and is a relatively safe place
+       to import any mannor of additional build customizations -->
+  <Import Project="*.ProjectExtension.targets" />
+</Project>
