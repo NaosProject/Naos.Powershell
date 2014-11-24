@@ -204,7 +204,7 @@ Write-Output 'BEGIN Building Release For All Projects'
 	$msBuildReleasePropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
 	$msBuildReleasePropertiesDictionary.Add('BuildRootPath', $buildScriptsPath)
 	$msBuildReleasePropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
-	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildDebugPropertiesDictionary
+	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary
 Write-Output 'END Building Release For All Projects'
 
 Write-Output 'BEGIN Building Debug For All Projects'
