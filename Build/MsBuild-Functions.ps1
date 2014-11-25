@@ -1,5 +1,5 @@
 # Assign Global Variables
-     $msbuildVerbosityLevel = 'd' #q[uiet], m[inimal], n[ormal], d[etailed], and diag[nostic]
+     $msbuildVerbosityLevel = 'n' #q[uiet], m[inimal], n[ormal], d[etailed], and diag[nostic]
 
 # Assign Path's to necessary
 	$MsBuildExeFilePath = "MsBuild" #(Resolve-Path "$env:windir\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe")
@@ -28,9 +28,14 @@ function MsBuild-BuildDebug([string] $solutionFilePath)
 	if(($lastExitCode -ne 0) -and (-not $ContinueOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to  MsBuild Build Debug" }
 }
 
-function MsBuild-Custom([string] $customBuildFilePath, [string] $target, [object] $customPropertiesDictionary)
+function MsBuild-Custom([string] $customBuildFilePath, [string] $target, [object] $customPropertiesDictionary, [string] $diagnosticLogFileName, [string] $customLogger)
 {
-    $paramString = "$customBuildFilePath /m /property:BuildInParallel=true /target:$target /verbosity:$msbuildVerbosityLevel"
+    $paramString = "$customBuildFilePath /m /property:BuildInParallel=true /target:$target /verbosity:$msbuildVerbosityLevel `"/flp1:LogFile=$diagnosticLogFileName;Verbosity=diagnostic`""
+	
+	if (-not [String]::IsNullOrEmpty($customLogger))
+	{
+		$paramString += " /logger:`"$customLogger`""
+	}
 	
 	$customPropertiesDictionary.GetEnumerator() | %{
 		$paramString += " /property:$($_.Key)=$($_.Value)"
