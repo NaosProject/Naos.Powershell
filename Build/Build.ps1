@@ -32,8 +32,14 @@ A directory to output nuget packages to on the local machine.
 .PARAMETER StyleCopTargetsPath
 The filepath to the StyleCop targets file to run stylecop during build.
 
+.PARAMETER CustomMsBuildLogger
+Path to an optional custom msbuild logger library to save output from build (often provided by CI platforms).
+
 .PARAMETER TreatBuildWarningsAsErrors
 Will cause any warnings from the build to be displayed as errors and will fail the build.
+
+.PARAMETER SaveFileAsBuildArtifact
+An optional scriptblock that will be passed the output file from MsBuild with diagnostic level output for late review.
 
 .PARAMETER Run
 The action switch to enable running (prevent double click execution).
@@ -58,7 +64,9 @@ param(
 		[string] $PackageUpdateStrategyPrivateGallery,
 		[string] $PackageUpdateStrategyPublicGallery,
 		[string] $StyleCopTargetsPath,
+		[string] $CustomMsBuildLogger,
 		[bool] $TreatBuildWarningsAsErrors,
+		[scriptblock] $SaveFileAsBuildArtifact,
 		[switch] $Run
 )
 
@@ -137,6 +145,9 @@ try
 		$informationalVersion = "$Version-$cleanBranchName"
 	}
 	
+	$diagnosticLogFilePathRelease = Join-Path (Resolve-Path .) 'MsBuildDiagnosticOutputRelease.log'
+	$diagnosticLogFilePathDebug = Join-Path (Resolve-Path .) 'MsBuildDiagnosticOutputDebug.log'
+	$diagnosticLogFilePathPublish = Join-Path (Resolve-Path .) 'MsBuildDiagnosticOutputPublish.log'
 	$projectFilePaths = MsBuild-GetProjectsFromSolution -solutionFilePath $solutionFilePath
 	$pkgFiles = ls $SourceDirectory -filter packages.config -recurse | %{if(Test-Path($_.FullName)){$_.FullName}}
 	$pkgDir = Join-Path (Split-Path $solutionFilePath) 'packages'
@@ -205,7 +216,11 @@ Write-Output 'BEGIN Building Release For All Projects'
 	$msBuildReleasePropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
 	$msBuildReleasePropertiesDictionary.Add('BuildRootPath', $buildScriptsPath)
 	$msBuildReleasePropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
-	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary
+	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary -diagnosticLogFileName $diagnosticLogFilePathRelease -customLogger $CustomMsBuildLogger
+	if ($SaveFileAsBuildArtifact -ne $null)
+	{
+		&$SaveFileAsBuildArtifact($diagnosticLogFilePathRelease)
+	}
 Write-Output 'END Building Release For All Projects'
 
 Write-Output 'BEGIN Building Debug For All Projects'
@@ -216,7 +231,11 @@ Write-Output 'BEGIN Building Debug For All Projects'
 	$msBuildDebugPropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
 	$msBuildDebugPropertiesDictionary.Add('BuildRootPath', $buildScriptsPath)
 	$msBuildDebugPropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
-	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildDebugPropertiesDictionary
+	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildDebugPropertiesDictionary -diagnosticLogFileName $diagnosticLogFilePathDebug -customLogger $CustomMsBuildLogger
+	if ($SaveFileAsBuildArtifact -ne $null)
+	{
+		&$SaveFileAsBuildArtifact($diagnosticLogFilePathDebug)
+	}
 Write-Output 'END Building Debug For All Projects'
 
 Write-Output 'BEGIN Publish All Web Projects'
@@ -234,7 +253,11 @@ Write-Output 'BEGIN Publish All Web Projects'
 			if ($frameworkNewEnough) # 4.0 won't work (needs additional data)
 			{
 				Write-Output "Publishing $projFilePath to $outputFilePath using $fileSystemPublishFilePath"
-				MsBuild-PublishToFileSystem -outputFilePath $outputFilePath -projectFilePath $projFilePath -pubXmlFilePath $fileSystemPublishFilePath
+				MsBuild-PublishToFileSystem -outputFilePath $outputFilePath -projectFilePath $projFilePath -pubXmlFilePath $fileSystemPublishFilePath -diagnosticLogFileName $diagnosticLogFilePathPublish
+				if ($SaveFileAsBuildArtifact -ne $null)
+				{
+					&$SaveFileAsBuildArtifact($diagnosticLogFilePathPublish)
+				}
 			}
 			else
 			{
@@ -298,8 +321,12 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 			
 
 			$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
-
 			$createdPackagePaths.Add($packageFile)
+			
+			if ($SaveFileAsBuildArtifact -ne $null)
+			{
+				&$SaveFileAsBuildArtifact($nuspecFilePath)
+			}
 			
 			if ($nuspecFileCreated)
 			{
@@ -319,6 +346,11 @@ Write-Output 'END Create NuGet Packages'
 	{
 Write-Output "BEGIN Push NuGet Packages to $GalleryUrl"
 		$createdPackagePaths | %{
+			if ($SaveFileAsBuildArtifact -ne $null)
+			{
+				&$SaveFileAsBuildArtifact($_)
+			}
+
 			Write-Output "Pushing package $_"
 			Nuget-PublishPackage -packagePath $_ -apiUrl $GalleryUrl -apiKey $GalleryApiKey
 		}

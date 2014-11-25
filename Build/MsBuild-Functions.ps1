@@ -1,5 +1,5 @@
 # Assign Global Variables
-     $msbuildVerbosityLevel = 'd' #q[uiet], m[inimal], n[ormal], d[etailed], and diag[nostic]
+     $msbuildVerbosityLevel = 'n' #q[uiet], m[inimal], n[ormal], d[etailed], and diag[nostic]
 
 # Assign Path's to necessary
 	$MsBuildExeFilePath = "MsBuild" #(Resolve-Path "$env:windir\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe")
@@ -28,9 +28,14 @@ function MsBuild-BuildDebug([string] $solutionFilePath)
 	if(($lastExitCode -ne 0) -and (-not $ContinueOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to  MsBuild Build Debug" }
 }
 
-function MsBuild-Custom([string] $customBuildFilePath, [string] $target, [object] $customPropertiesDictionary)
+function MsBuild-Custom([string] $customBuildFilePath, [string] $target, [object] $customPropertiesDictionary, [string] $diagnosticLogFileName, [string] $customLogger)
 {
-    $paramString = "$customBuildFilePath /m /property:BuildInParallel=true /target:$target /verbosity:$msbuildVerbosityLevel"
+    $paramString = "$customBuildFilePath /m /property:BuildInParallel=true /target:$target /verbosity:$msbuildVerbosityLevel `"/flp1:LogFile=$diagnosticLogFileName;Verbosity=diagnostic`""
+	
+	if (-not [String]::IsNullOrEmpty($customLogger))
+	{
+		$paramString += " /logger:`"$customLogger`""
+	}
 	
 	$customPropertiesDictionary.GetEnumerator() | %{
 		$paramString += " /property:$($_.Key)=$($_.Value)"
@@ -44,10 +49,15 @@ function MsBuild-Custom([string] $customBuildFilePath, [string] $target, [object
 	Write-Host '<END MsBuild-Custom' -ForegroundColor Cyan
 }
 
-function MsBuild-PublishToFileSystem([string] $projectFilePath, [string] $outputFilePath, [string] $pubXmlFilePath)
+function MsBuild-PublishToFileSystem([string] $projectFilePath, [string] $outputFilePath, [string] $pubXmlFilePath, [string] $diagnosticLogFileName)
 {
-    &$MsBuildExeFilePath "$projectFilePath" "/target:WebPublish" "/property:VisualStudioVersion=12.0" "/property:Configuration=release" "/property:DebugType=pdbonly" "/verbosity:$msbuildVerbosityLevel" "/property:PublishProfile=$pubXmlFilePath" "/property:publishUrl=$outputFilePath"
+    $paramString = "$projectFilePath /target:WebPublish /property:VisualStudioVersion=12.0 /property:Configuration=release /property:DebugType=pdbonly /verbosity:$msbuildVerbosityLevel /property:PublishProfile=$pubXmlFilePath /property:publishUrl=$outputFilePath `"/flp1:LogFile=$diagnosticLogFileName;Verbosity=diagnostic`""
+	$cmd = "$MsBuildExeFilePath $paramString"
+	Write-Output "Executing MsBuild Command: '$cmd'"
+	Write-Host '>BEGIN MsBuild-PublishToFileSystem' -ForegroundColor Cyan
+	Invoke-Expression $cmd
 	if(($lastExitCode -ne 0) -and (-not $ContinueOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to  MsBuild PublishToFileSystem" }
+	Write-Host '<END MsBuild-PublishToFileSystem' -ForegroundColor Cyan
 }
 
 function MsBuild-GetProjectsFromSolution([string] $solutionFilePath)
