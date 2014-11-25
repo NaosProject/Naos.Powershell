@@ -147,6 +147,7 @@ try
 	
 	$diagnosticLogFilePathRelease = Join-Path (Resolve-Path .) 'MsBuildDiagnosticOutputRelease.log'
 	$diagnosticLogFilePathDebug = Join-Path (Resolve-Path .) 'MsBuildDiagnosticOutputDebug.log'
+	$diagnosticLogFilePathPublish = Join-Path (Resolve-Path .) 'MsBuildDiagnosticOutputPublish.log'
 	$projectFilePaths = MsBuild-GetProjectsFromSolution -solutionFilePath $solutionFilePath
 	$pkgFiles = ls $SourceDirectory -filter packages.config -recurse | %{if(Test-Path($_.FullName)){$_.FullName}}
 	$pkgDir = Join-Path (Split-Path $solutionFilePath) 'packages'
@@ -252,7 +253,11 @@ Write-Output 'BEGIN Publish All Web Projects'
 			if ($frameworkNewEnough) # 4.0 won't work (needs additional data)
 			{
 				Write-Output "Publishing $projFilePath to $outputFilePath using $fileSystemPublishFilePath"
-				MsBuild-PublishToFileSystem -outputFilePath $outputFilePath -projectFilePath $projFilePath -pubXmlFilePath $fileSystemPublishFilePath
+				MsBuild-PublishToFileSystem -outputFilePath $outputFilePath -projectFilePath $projFilePath -pubXmlFilePath $fileSystemPublishFilePath -diagnosticLogFileName $diagnosticLogFilePathPublish
+				if ($SaveFileAsBuildArtifact -ne $null)
+				{
+					&$SaveFileAsBuildArtifact($diagnosticLogFilePathPublish)
+				}
 			}
 			else
 			{
@@ -316,8 +321,12 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 			
 
 			$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
-
 			$createdPackagePaths.Add($packageFile)
+			
+			if ($SaveFileAsBuildArtifact -ne $null)
+			{
+				&$SaveFileAsBuildArtifact($nuspecFilePath)
+			}
 			
 			if ($nuspecFileCreated)
 			{
@@ -337,6 +346,11 @@ Write-Output 'END Create NuGet Packages'
 	{
 Write-Output "BEGIN Push NuGet Packages to $GalleryUrl"
 		$createdPackagePaths | %{
+			if ($SaveFileAsBuildArtifact -ne $null)
+			{
+				&$SaveFileAsBuildArtifact($_)
+			}
+
 			Write-Output "Pushing package $_"
 			Nuget-PublishPackage -packagePath $_ -apiUrl $GalleryUrl -apiKey $GalleryApiKey
 		}

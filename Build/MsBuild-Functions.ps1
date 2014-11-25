@@ -49,10 +49,15 @@ function MsBuild-Custom([string] $customBuildFilePath, [string] $target, [object
 	Write-Host '<END MsBuild-Custom' -ForegroundColor Cyan
 }
 
-function MsBuild-PublishToFileSystem([string] $projectFilePath, [string] $outputFilePath, [string] $pubXmlFilePath)
+function MsBuild-PublishToFileSystem([string] $projectFilePath, [string] $outputFilePath, [string] $pubXmlFilePath, [string] $diagnosticLogFileName)
 {
-    &$MsBuildExeFilePath "$projectFilePath" "/target:WebPublish" "/property:VisualStudioVersion=12.0" "/property:Configuration=release" "/property:DebugType=pdbonly" "/verbosity:$msbuildVerbosityLevel" "/property:PublishProfile=$pubXmlFilePath" "/property:publishUrl=$outputFilePath"
+    $paramString = "$projectFilePath /target:WebPublish /property:VisualStudioVersion=12.0 /property:Configuration=release /property:DebugType=pdbonly /verbosity:$msbuildVerbosityLevel /property:PublishProfile=$pubXmlFilePath /property:publishUrl=$outputFilePath `"/flp1:LogFile=$diagnosticLogFileName;Verbosity=diagnostic`""
+	$cmd = "$MsBuildExeFilePath $paramString"
+	Write-Output "Executing MsBuild Command: '$cmd'"
+	Write-Host '>BEGIN MsBuild-PublishToFileSystem' -ForegroundColor Cyan
+	Invoke-Expression $cmd
 	if(($lastExitCode -ne 0) -and (-not $ContinueOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to  MsBuild PublishToFileSystem" }
+	Write-Host '<END MsBuild-PublishToFileSystem' -ForegroundColor Cyan
 }
 
 function MsBuild-GetProjectsFromSolution([string] $solutionFilePath)
