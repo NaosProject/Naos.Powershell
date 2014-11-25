@@ -252,6 +252,13 @@ function MsBuild-GetPdbFileName([string] $projectFilePath)
 	return $ret
 }
 
+function MsBuild-GetXmlDocFileName([string] $projectFilePath)
+{
+	$asmName = MsBuild-GetAssemblyName -projectFilePath $projectFilePath
+	$ret = "$asmName.xml"
+	return $ret
+}
+
 function MsBuild-GetExtMapFileName([string] $projectFilePath)
 {
 	$asmName = MsBuild-GetAssemblyName -projectFilePath $projectFilePath
@@ -267,6 +274,8 @@ function MsBuild-GetOutputFiles([string] $projectFilePath)
 	$files.Add($outputFile)
 	$pdbFile = MsBuild-GetPdbFileName -projectFilePath $projectFilePath
 	$files.Add($pdbFile)
+	$docFile = MsBuild-GetXmlDocFileName -projectFilePath $projectFilePath
+	$files.Add($docFile)
 	
 	$isSilverlight = MsBuild-IsSilverlightProject -projectFilePath $projectFilePath
 	if ($isSilverlight)
