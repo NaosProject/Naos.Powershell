@@ -163,10 +163,6 @@ try
 		$buildProjFile = $localBuildProjFile
 	}
 
-# Push to calling directory
-	$dirPushed = $true
-	pushd $SourceDirectory
-	 
 $scriptStartTime = [System.DateTime]::Now
 Write-Output "BEGIN Build : $($scriptStartTime.ToString('yyyyMMdd-HHmm'))"
 
@@ -357,11 +353,6 @@ Write-Output "BEGIN Push NuGet Packages to $GalleryUrl"
 Write-Output 'END Push NuGet Packages'
 	}
 
-if($dirPushed)
-{
-	popd
-}
-
 $scriptEndTime = [System.DateTime]::Now
 Write-Output "END Build. : $($scriptEndTime.ToString('yyyyMMdd-HHmm')) : Total Time : $(($scriptEndTime.Subtract($scriptStartTime)).ToString())"
 }
@@ -381,9 +372,5 @@ catch
 	 Write-Output -ForegroundColor Red "ERROR DURING EXECUTION"
 	 Write-Output ""
 	 
-	 if($dirPushed)
-	 {
-		popd
-	 }
 	 throw
 }
