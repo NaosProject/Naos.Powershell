@@ -30,8 +30,13 @@ function MsBuild-BuildDebug([string] $solutionFilePath)
 
 function MsBuild-Custom([string] $customBuildFilePath, [string] $target, [object] $customPropertiesDictionary, [string] $diagnosticLogFileName, [string] $customLogger)
 {
-    $paramString = "$customBuildFilePath /m /property:BuildInParallel=true /target:$target /verbosity:$msbuildVerbosityLevel `"/flp1:LogFile=$diagnosticLogFileName;Verbosity=diagnostic`""
+    $paramString = "$customBuildFilePath /m /property:BuildInParallel=true /target:$target /verbosity:$msbuildVerbosityLevel"
 	
+	if (-not [String]::IsNullOrEmpty($diagnosticLogFileName))
+	{
+		$paramString += " `"/flp1:LogFile=$diagnosticLogFileName;Verbosity=diagnostic`""
+	}
+	 
 	if (-not [String]::IsNullOrEmpty($customLogger))
 	{
 		$paramString += " /logger:`"$customLogger`""
