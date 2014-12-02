@@ -54,17 +54,17 @@ function NuGet-UpdatePackagesInSolution([string] $solutionFile, [string] $update
 	Write-Output "   NuGet Update Solution File: $solutionFile"
 	if ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdateSafe)
 	{
-		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction"
+		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction -Source $source"
 		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction -Source $source
 	}
 	elseif ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdateNormal)
 	{
-		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction"
+		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source"
 		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source
 	}
 	elseif ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdatePreRelease)
 	{
-		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction"
+		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source -Prerelease"
 		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source -Prerelease
 	}
 	else {
