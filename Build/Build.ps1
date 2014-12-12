@@ -352,6 +352,10 @@ Write-Output "BEGIN Push NuGet Packages to $GalleryUrl"
 		}
 Write-Output 'END Push NuGet Packages'
 	}
+	else 
+	{
+		Write-Output 'SKIPPING Push NuGet Packages because either the gallery url or key was not provided'
+	}
 
 $scriptEndTime = [System.DateTime]::Now
 Write-Output "END Build. : $($scriptEndTime.ToString('yyyyMMdd-HHmm')) : Total Time : $(($scriptEndTime.Subtract($scriptStartTime)).ToString())"
