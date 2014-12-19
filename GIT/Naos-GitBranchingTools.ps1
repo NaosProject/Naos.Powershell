@@ -28,12 +28,16 @@ function Validate-RepoState()
         throw "You cannot run this script from master, it must be run from a branch."
     }
 
-    # validate that there are no uncommitted changes on the branch
-    # https://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
-    git diff --quiet HEAD
-    if ( $LASTEXITCODE -ne 0 )
+    # update the index
+    # http://stackoverflow.com/a/3879077/356790
+    git update-index -q --ignore-submodules --refresh
+
+    # validate that there are no untracked/unstaged/uncommitted changes in the working tree
+    # https://stackoverflow.com/questions/2657935/checking-for-a-dirty-index-or-untracked-files-with-git
+    $status = (git status --porcelain)
+    if ( -Not [string]::IsNullOrEmpty( $status ) )
     {
-        throw "There are changes on this branch that have not been committed (either staged or unstaged)."
+        throw "There are untracked/unstaged/uncommitted changes on this branch."
     }
 
     # check mergetool exists
