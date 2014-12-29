@@ -72,7 +72,7 @@ function MsBuild-GetProjectsFromSolution([string] $solutionFilePath)
 	 ? { $_ -match "^Project" }                                    | 
 		  %{ $_ -match ".*=(.*)$" | out-null ; $matches[1] }       | 
 			   %{ $_.Split(",")[1].Trim().Trim('"') }			   |
-					?{ $_.Contains('.csproj') -or $_.Contains('.vcxproj') } # Pattern will pull some solution items that need to be filtered out...
+					?{ $_.Contains('.csproj') -or $_.Contains('.vbproj') -or $_.Contains('.vcxproj') } # Pattern will pull some solution items that need to be filtered out...
 	return ,$projectFilePaths
 }
 
@@ -89,7 +89,7 @@ function MsBuild-GetProjectNamePathDictionaryFromSolution([string] $solutionFile
 			$path = Join-Path $solutionDir $path
 		}
 		
-		$name = [System.IO.Path]::GetFileName($path).Replace('.csproj', '').Replace('.vcxproj', '')
+		$name = [System.IO.Path]::GetFileName($path).Replace('.csproj', '').Replace('.vbproj', '').Replace('.vcxproj', '')
 		
 		$namePathDictionary.Add($name, $path)
 	}

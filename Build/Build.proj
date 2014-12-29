@@ -28,7 +28,7 @@
 
   <!-- Default is to build all C# projects in the tree, this can be customized if appropriate. -->
   <ItemGroup>
-    <Projects Include="$(SourceRootPath)**\*.csproj" />
+    <Projects Include="$(SourceRootPath)**\*.csproj;$(SourceRootPath)**\*.vbproj" />
   </ItemGroup>
 
   <!-- Do not change this line, it pulls in the build system -->

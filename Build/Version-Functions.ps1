@@ -80,7 +80,7 @@ function Version-GetVersionFromProject ([string] $projFilePath)
 		}
 	}
 	
-	# assumed to be in C# project (csproj)
+	# assumed to be in .NET project (csproj or vbproj)
 	if ($asmInfoMatches.Length -gt 1) { throw "Returned multiple matches for AssemblyVersion" }
 	if ($asmFileInfoMatches.Length -gt 1) { throw "Returned multiple matches for AssemblyFileVersion" }
 

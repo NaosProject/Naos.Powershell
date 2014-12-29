@@ -35,6 +35,9 @@ The filepath to the StyleCop targets file to run stylecop during build.
 .PARAMETER CustomMsBuildLogger
 Path to an optional custom msbuild logger library to save output from build (often provided by CI platforms).
 
+.PARAMETER WorkingDirectory
+Path to an optional working directory to house temp files used during build process (very nice if building locally to not pollute the repo).
+
 .PARAMETER TreatBuildWarningsAsErrors
 Will cause any warnings from the build to be displayed as errors and will fail the build.
 
@@ -65,6 +68,7 @@ param(
 		[string] $PackageUpdateStrategyPublicGallery,
 		[string] $StyleCopTargetsPath,
 		[string] $CustomMsBuildLogger,
+		[string] $WorkingDirectory,
 		[bool] $TreatBuildWarningsAsErrors,
 		[scriptblock] $SaveFileAsBuildArtifact,
 		[switch] $Run
@@ -108,15 +112,32 @@ try
 # Get solution file path
 	$solutionFilePath = File-FindSolutionFileUnderPath -path $SourceDirectory
 
-# Use source directory as the default package output if not supplied on command line
-	if ([String]::IsNullOrEmpty($PackagesOutputDirectory))
-	{
-		$PackagesOutputDirectory = $SourceDirectory
-	}
-
 # Check version pattern
 	Version-CheckVersion $Version
 
+# Check input paths
+	if ([String]::IsNullOrEmpty($PackagesOutputDirectory))
+	{
+		if ([String]::IsNullOrEmpty($WorkingDirectory))
+		{
+			$PackagesOutputDirectory = $SourceDirectory
+		}
+		else
+		{
+			$PackagesOutputDirectory = $WorkingDirectory
+		}
+	}
+	
+	if ([String]::IsNullOrEmpty($WorkingDirectory))
+	{
+		$WorkingDirectory = '.'
+	}
+
+	if (-not (Test-Path $WorkingDirectory))
+	{
+		md $WorkingDirectory | Out-Null
+	}
+	
 # Assign Global Variables
 	if ([String]::IsNullOrEmpty($PackageUpdateStrategyPublicGallery))
 	{
@@ -145,9 +166,11 @@ try
 		$informationalVersion = "$Version-$cleanBranchName"
 	}
 	
-	$diagnosticLogFilePathRelease = Join-Path (Resolve-Path .) 'MsBuildDiagnosticOutputRelease.log'
-	$diagnosticLogFilePathDebug = Join-Path (Resolve-Path .) 'MsBuildDiagnosticOutputDebug.log'
-	$diagnosticLogFilePathPublish = Join-Path (Resolve-Path .) 'MsBuildDiagnosticOutputPublish.log'
+	$WorkingDirectory = Resolve-Path $WorkingDirectory
+	
+	$diagnosticLogFilePathRelease = Join-Path $WorkingDirectory 'MsBuildDiagnosticOutputRelease.log'
+	$diagnosticLogFilePathDebug = Join-Path $WorkingDirectory 'MsBuildDiagnosticOutputDebug.log'
+	$diagnosticLogFilePathPublish = Join-Path $WorkingDirectory 'MsBuildDiagnosticOutputPublish.log'
 	$projectFilePaths = MsBuild-GetProjectsFromSolution -solutionFilePath $solutionFilePath
 	$pkgFiles = ls $SourceDirectory -filter packages.config -recurse | %{if(Test-Path($_.FullName)){$_.FullName}}
 	$pkgDir = Join-Path (Split-Path $solutionFilePath) 'packages'
@@ -245,7 +268,7 @@ Write-Output 'BEGIN Publish All Web Projects'
 			$framework = $framework.Replace('v', '') # strip off leading v for compare
 			$frameworkNewEnough = Version-IsVersionSameOrNewerThan -versionToCompare $neccessaryFrameworkVersionForPublish -versionToCheck $framework
 			
-			$outputFilePath = Join-Path (Split-Path $projFilePath) $innerPackageDirForWebPackage
+			$outputFilePath = Join-Path $WorkingDirectory $innerPackageDirForWebPackage
 			if ($frameworkNewEnough) # 4.0 won't work (needs additional data)
 			{
 				Write-Output "Publishing $projFilePath to $outputFilePath using $fileSystemPublishFilePath"
@@ -268,9 +291,9 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 	%{
 		$projFilePath = Resolve-Path $_
 		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
-		$isNonTestLibrary = ((MsBuild-IsLibrary -projectFilePath $projFilePath) -and (-not (Get-Item $projFilePath).name.EndsWith('Test.csproj')))
+		$isNonTestLibrary = ((MsBuild-IsLibrary -projectFilePath $projFilePath) -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj'))))
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
-		$webPublishPath = Join-Path (Split-Path $projFilePath) $innerPackageDirForWebPackage
+		$webPublishPath = Join-Path $WorkingDirectory $innerPackageDirForWebPackage
 		
 		if ( $isNonTestLibrary -or 
 			 (Test-Path $nuspecFilePath) -or 
@@ -333,7 +356,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		else
 		{
 			# if manual created file then always use; for auto-create - skipping everything except libraries right now
-			Write-Output "   Skipping $projFilePath because this project was detected as a i) test library (EndsWith 'Test.csproj'), ii) non-published web project, iii) an existing NuSpec file was not found at ($nuSpecFilePath)"
+			Write-Output "   Skipping $projFilePath because this project was detected as a i) test library (EndsWith 'Test.csproj' or 'Test.vbproj'), ii) non-published web project, iii) an existing NuSpec file was not found at ($nuSpecFilePath)"
 		}
 	}
 Write-Output 'END Create NuGet Packages'
