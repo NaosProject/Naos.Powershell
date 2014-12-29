@@ -54,17 +54,17 @@ function NuGet-UpdatePackagesInSolution([string] $solutionFile, [string] $update
 	Write-Output "   NuGet Update Solution File: $solutionFile"
 	if ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdateSafe)
 	{
-		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction"
+		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction -Source $source"
 		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -Safe -FileConflictAction $nugetFileConflictAction -Source $source
 	}
 	elseif ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdateNormal)
 	{
-		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction"
+		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source"
 		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source
 	}
 	elseif ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdatePreRelease)
 	{
-		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction"
+		Write-Output "   Executing - $NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source -Prerelease"
 		&$NuGetExeFilePath update $solutionFile -Verbosity $nugetVerbosityLevel -FileConflictAction $nugetFileConflictAction -Source $source -Prerelease
 	}
 	else {
@@ -124,13 +124,13 @@ function NuGet-UpdateVersionOnNuSpecExternalWrapper([string] $version, [string] 
 
 function NuGet-GetNuSpecFilePath([string] $projFilePath)
 {
-	$nuspecFilePath = $projFilePath.ToString().Replace('.csproj', '.nuspec').Replace('.vcxproj', '.nuspec')
+	$nuspecFilePath = $projFilePath.ToString().Replace('.csproj', '.nuspec').Replace('.vcxproj', '.nuspec').Replace('.vbproj', '.nuspec')
 	return $nuspecFilePath
 }
 
 function NuGet-GetNuSpecDeploymentFilePath([string] $projFilePath)
 {
-	$nuspecFilePath = $projFilePath.ToString().Replace('.csproj', '-Deployment.nuspec').Replace('.vcxproj', '-Deployment.nuspec')
+	$nuspecFilePath = $projFilePath.ToString().Replace('.csproj', '-Deployment.nuspec').Replace('.vcxproj', '-Deployment.nuspec').Replace('.vbproj', '-Deployment.nuspec')
 	return $nuspecFilePath
 }
 
@@ -212,7 +212,7 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 	
 	# Add project references as
 	$projectReferences | %{
-		$id = [System.IO.Path]::GetFileName($_).Replace('.csproj', '')
+		$id = [System.IO.Path]::GetFileName($_).Replace('.csproj', '').Replace('.vbproj', '')
 		$newElement = $nuspec.CreateElement('dependency')
 		$newElement.SetAttribute('id', $id)
 		$newElement.SetAttribute('version', '$version$')
@@ -221,7 +221,7 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 	
 	# Set id and authors
 	$id = $nuspec.SelectSingleNode('package/metadata/id')
-	$fileName = [System.IO.Path]::GetFileName($projFilePath).Replace('.csproj', '')
+	$fileName = [System.IO.Path]::GetFileName($projFilePath).Replace('.csproj', '').Replace('.vbproj', '')
 	$id.InnerXml = $fileName
 	$author = $nuspec.SelectSingleNode('package/metadata/authors')
 	$author.InnerXml = "$($env:ComputerName)\$($env:UserName)"
@@ -275,7 +275,7 @@ function Nuget-MovePackageToGallery([string] $projectFilePath, [string] $pathOfN
 	$packageTargetDir = (Resolve-Path $galleryPath)
 
 	$files = New-Object System.Collections.Generic.List``1[System.String]
-	$name = [System.IO.Path]::GetFileName($projectFilePath).Replace('.csproj', '').Replace('.vcxproj', '')
+	$name = [System.IO.Path]::GetFileName($projectFilePath).Replace('.csproj', '').Replace('.vbproj', '').Replace('.vcxproj', '')
 	$subDir = Join-Path $packageTargetDir $name
 	if (-not (Test-Path $subDir)) { md $subDir }
 	
