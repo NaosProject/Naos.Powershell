@@ -1,5 +1,6 @@
 # Assign Global Variables
      $msbuildVerbosityLevel = 'n' #q[uiet], m[inimal], n[ormal], d[etailed], and diag[nostic]
+	 $SOLUTION_FILE_EXTENSION = 'sln'
 
 # Assign Path's to necessary
 	$MsBuildExeFilePath = "MsBuild" #(Resolve-Path "$env:windir\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe")
