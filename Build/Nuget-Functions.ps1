@@ -146,7 +146,7 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 	if ($projFiles.GetType().Name -ne 'FileInfo')
 	{
 		$projFiles | %{"Found project file: $_"}
-		# more than one csproj file which will confuse the NuGet spec call
+		# more than one proj file which will confuse the NuGet spec call
 		throw "Multiple Project Files found in same directory $projDir; can only create a package from one of the projects, please remove one of them"
 	}
 	

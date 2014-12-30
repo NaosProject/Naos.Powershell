@@ -168,9 +168,10 @@ try
 	
 	$WorkingDirectory = Resolve-Path $WorkingDirectory
 	
-	$diagnosticLogFilePathRelease = Join-Path $WorkingDirectory 'MsBuildDiagnosticOutputRelease.log'
-	$diagnosticLogFilePathDebug = Join-Path $WorkingDirectory 'MsBuildDiagnosticOutputDebug.log'
-	$diagnosticLogFilePathPublish = Join-Path $WorkingDirectory 'MsBuildDiagnosticOutputPublish.log'
+	$solutionFileName = (Get-Item $solutionFilePath).Name.Replace(".$($SOLUTION_FILE_EXTENSION)", '')
+	$diagnosticLogFilePathRelease = Join-Path $WorkingDirectory "$($solutionFileName)_MsBuildDiagnosticOutputRelease.log"
+	$diagnosticLogFilePathDebug = Join-Path $WorkingDirectory "$($solutionFileName)_MsBuildDiagnosticOutputDebug.log"
+	$diagnosticLogFilePathPublish = Join-Path $WorkingDirectory "$($solutionFileName)_MsBuildDiagnosticOutputPublish.log"
 	$projectFilePaths = MsBuild-GetProjectsFromSolution -solutionFilePath $solutionFilePath
 	$pkgFiles = ls $SourceDirectory -filter packages.config -recurse | %{if(Test-Path($_.FullName)){$_.FullName}}
 	$pkgDir = Join-Path (Split-Path $solutionFilePath) 'packages'
@@ -268,7 +269,7 @@ Write-Output 'BEGIN Publish All Web Projects'
 			$framework = $framework.Replace('v', '') # strip off leading v for compare
 			$frameworkNewEnough = Version-IsVersionSameOrNewerThan -versionToCompare $neccessaryFrameworkVersionForPublish -versionToCheck $framework
 			
-			$outputFilePath = Join-Path $WorkingDirectory $innerPackageDirForWebPackage
+			$outputFilePath = Join-Path $WorkingDirectory "$($solutionFileName)_$innerPackageDirForWebPackage"
 			if ($frameworkNewEnough) # 4.0 won't work (needs additional data)
 			{
 				Write-Output "Publishing $projFilePath to $outputFilePath using $fileSystemPublishFilePath"
@@ -293,7 +294,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
 		$isNonTestLibrary = ((MsBuild-IsLibrary -projectFilePath $projFilePath) -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj'))))
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
-		$webPublishPath = Join-Path $WorkingDirectory $innerPackageDirForWebPackage
+		$webPublishPath = Join-Path $WorkingDirectory "$($solutionFileName)_$innerPackageDirForWebPackage"
 		
 		if ( $isNonTestLibrary -or 
 			 (Test-Path $nuspecFilePath) -or 
