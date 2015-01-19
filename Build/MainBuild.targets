@@ -6,18 +6,39 @@
     <MainBuildImported>true</MainBuildImported>
   </PropertyGroup>
 
+  <!-- Custom tasks - if more than one are even needed then all tasks should be moved to a separate file -->
+  <UsingTask TaskName="GetCommandLineProperties" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+      <ParameterGroup>
+          <Properties ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true" />
+      </ParameterGroup>
+      <Task>
+
+          <Code Type="Fragment" Language="cs">
+              <![CDATA[
+  this.Properties = Environment
+    .GetCommandLineArgs()
+    .Where(s => s.StartsWith("/p:", StringComparison.InvariantCultureIgnoreCase))
+    .Select(s => s.Remove(0, 3))
+    .Select(s => new TaskItem(s))
+    .ToArray();
+  ]]>
+          </Code>
+      </Task>
+  </UsingTask>
+
   <!-- This simply replicates the msbuild command line except that it overrides the
        CustomAfterMicrosoftCommonTargets variable to point at .\After.Microsoft.Commmon.targets.
        This means that whether the user enters via the command line build or via the BuildHook.targets
        file when initiated through Visual Studio, all projects will use .\After.Microsoft.Commmon.targets. -->
   <Target Name="PrepareBuildProperties">
+    <!-- Pass along all original command line arguments to child msbuild calls -->
+    <GetCommandLineProperties>
+      <Output ItemName="CommandLineProperties" TaskParameter="Properties"/>
+    </GetCommandLineProperties>
+
     <PropertyGroup>
       <_BuildProperties>CustomAfterMicrosoftCommonTargets=$(BuildRootPath)After.Microsoft.Common.targets</_BuildProperties>
-      <_BuildProperties Condition="'$(SourceRootPath)' != ''">$(_BuildProperties);SourceRootPath=$(SourceRootPath)</_BuildProperties>
-      <_BuildProperties Condition="'$(BuildRootPath)' != ''">$(_BuildProperties);BuildRootPath=$(BuildRootPath)</_BuildProperties>
-      <_BuildProperties Condition="'$(Configuration)' != ''">$(_BuildProperties);Configuration=$(Configuration)</_BuildProperties>
-      <_BuildProperties Condition="'$(Platform)' != ''">$(_BuildProperties);Platform=$(Platform)</_BuildProperties>
-      <_BuildProperties Condition="'$(StyleCopImportsTargetsFilePath)' != ''">$(_BuildProperties);StyleCopImportsTargetsFilePath=$(StyleCopImportsTargetsFilePath)</_BuildProperties>
+      <_BuildProperties Condition="'@(CommandLineProperties)' != ''">$(_BuildProperties);@(CommandLineProperties)</_BuildProperties>
     </PropertyGroup>
   </Target>
 
