@@ -253,7 +253,7 @@ function Nuget-CreatePackageFromNuspec([string] $nuspecFilePath, [string] $versi
 	Write-Host -Fore Cyan ""
 	Write-Host -Fore Cyan "   >BEGIN Pack"
 
-	$output = &$NuGetExeFilePath pack $nuspecFilePath -Verbosity $nugetVerbosityLevel -Properties Configuration=Release -Version $version -OutputDirectory $outputDirectory
+	$output = &$NuGetExeFilePath pack $nuspecFilePath -Verbosity $nugetVerbosityLevel -Properties Configuration=Release -Version $version -OutputDirectory $outputDirectory -NoDefaultExcludes
 	
 	Write-Host $output
 
