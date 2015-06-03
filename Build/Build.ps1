@@ -20,6 +20,9 @@ The url of the NuGet gallery to update packages from (if applicable) and push pa
 .PARAMETER GalleryApiKey
 The api key of the NuGet gallery to push packages to (if not present the push will not be performed).
 
+.PARAMETER BuildPackagesDirectory
+The directory where build packages can be found.
+
 .PARAMETER PackageUpdateStrategyPrivateGallery
 Ability to specify whether NuGet packages from the private gallery are updated or not [None, UpdateSafe, UpdateNormal, UpdatePreRelease] (None is default).
 
@@ -40,6 +43,9 @@ Path to an optional working directory to house temp files used during build proc
 
 .PARAMETER TreatBuildWarningsAsErrors
 Will cause any warnings from the build to be displayed as errors and will fail the build.
+
+.PARAMETER RunCodeAnalysis
+Will cause code analysis to be run during the build.
 
 .PARAMETER SaveFileAsBuildArtifact
 An optional scriptblock that will be passed the output file from MsBuild with diagnostic level output for late review.
@@ -63,6 +69,7 @@ param(
 		[string] $BranchName,
 		[string] $GalleryUrl,
 		[string] $GalleryApiKey,
+		[string] $BuildPackagesDirectory,
 		[string] $PackagesOutputDirectory,
 		[string] $PackageUpdateStrategyPrivateGallery,
 		[string] $PackageUpdateStrategyPublicGallery,
@@ -70,6 +77,7 @@ param(
 		[string] $CustomMsBuildLogger,
 		[string] $WorkingDirectory,
 		[bool] $TreatBuildWarningsAsErrors,
+		[bool] $RunCodeAnalysis,
 		[scriptblock] $SaveFileAsBuildArtifact,
 		[switch] $Run
 )
@@ -101,11 +109,13 @@ try
 	Write-Output "   BranchName: $BranchName"
 	Write-Output "   GalleryUrl: $GalleryUrl"
 	Write-Output "   GalleryApiKey: $(Help-HideAllButLastChars -ValueToMask $GalleryApiKey -RemainingChars 5)"
+	Write-Output "   BuildPackagesDirectory: $BuildPackagesDirectory"
 	Write-Output "   PackagesOutputDirectory: $PackagesOutputDirectory"
 	Write-Output "   PackageUpdateStrategyPrivateGallery: $PackageUpdateStrategyPrivateGallery"
 	Write-Output "   PackageUpdateStrategyPublicGallery: $PackageUpdateStrategyPublicGallery"
 	Write-Output "   StyleCopTargetsPath: $StyleCopTargetsPath"
 	Write-Output "   TreatBuildWarningsAsErrors: $TreatBuildWarningsAsErrors"
+	Write-Output "   RunCodeAnalysis: $RunCodeAnalysis"
 	
     $scriptStartTime = [DateTime]::Now
 
@@ -116,6 +126,11 @@ try
 	Version-CheckVersion $Version
 
 # Check input paths
+	if ([String]::IsNullOrEmpty($BuildPackagesDirectory))
+	{
+		$BuildPackagesDirectory = $buildScriptsPath + "\..\.."
+	}
+
 	if ([String]::IsNullOrEmpty($PackagesOutputDirectory))
 	{
 		if ([String]::IsNullOrEmpty($WorkingDirectory))
@@ -157,7 +172,7 @@ try
 	$informationalVersion = $Version
 	if ((-not [String]::IsNullOrEmpty($BranchName)) -and ($BranchName -ne 'master'))
 	{
-		$cleanBranchName = $BranchName.Replace('_', '').Replace('-', '').Replace(' ', '').Replace('+', '')
+		$cleanBranchName = $BranchName.Replace('_', '').Replace('-', '').Replace(' ', '').Replace('+', '').Replace('.', '')
 		if ($cleanBranchName.Length -gt 20)
 		{
 			$cleanBranchName = $cleanBranchName.Substring(0, 20)
@@ -180,7 +195,7 @@ try
 	$neccessaryFrameworkVersionForPublish = 4.5
 	$createdPackagePaths = New-Object 'System.Collections.Generic.List[String]'
 	$styleCopWarningsAsErrors = -not $TreatBuildWarningsAsErrors #stylecop uses inverted logic to define this...
-	$buildProjFile = Join-Path $buildScriptsPath 'Build.proj'
+	$buildProjFile = ls (Join-Path $BuildPackagesDirectory 'Build.proj') -recurse | %{if(Test-Path($_.FullName)){$_.FullName}} | select-object -first 1
 	$localBuildProjFile = Join-Path $SourceDirectory 'Build.proj'
 	if (Test-Path $localBuildProjFile) #if there is one in the repo use it...
 	{
@@ -234,8 +249,9 @@ Write-Output 'BEGIN Building Release For All Projects'
 	$msBuildReleasePropertiesDictionary.Add('StyleCopTreatErrorsAsWarnings', $styleCopWarningsAsErrors)
 	$msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
 	$msBuildReleasePropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
-	$msBuildReleasePropertiesDictionary.Add('BuildRootPath', $buildScriptsPath)
+	$msBuildReleasePropertiesDictionary.Add('PackagesRootPath', $BuildPackagesDirectory)
 	$msBuildReleasePropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
+	$msBuildReleasePropertiesDictionary.Add('RunCodeAnalysis', $RunCodeAnalysis)
 	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary -diagnosticLogFileName $diagnosticLogFilePathRelease -customLogger $CustomMsBuildLogger
 	if ($SaveFileAsBuildArtifact -ne $null)
 	{
@@ -249,8 +265,9 @@ Write-Output 'BEGIN Building Debug For All Projects'
 	$msBuildDebugPropertiesDictionary.Add('StyleCopTreatErrorsAsWarnings', $styleCopWarningsAsErrors)
 	$msBuildDebugPropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
 	$msBuildDebugPropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
-	$msBuildDebugPropertiesDictionary.Add('BuildRootPath', $buildScriptsPath)
+	$msBuildDebugPropertiesDictionary.Add('PackagesRootPath', $BuildPackagesDirectory)
 	$msBuildDebugPropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
+	$msBuildDebugPropertiesDictionary.Add('RunCodeAnalysis', $RunCodeAnalysis)
 	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildDebugPropertiesDictionary -diagnosticLogFileName $diagnosticLogFilePathDebug -customLogger $CustomMsBuildLogger
 	if ($SaveFileAsBuildArtifact -ne $null)
 	{
