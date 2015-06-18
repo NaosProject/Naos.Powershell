@@ -11,7 +11,7 @@
     <tags>Powershell, CI, Build, Naos</tags>
 	<dependencies>
         <dependency id="Spritely.Build" version="[0.2.1,1)" />
-        <dependency id="Spritely.Build.JavaScriptTests" version="[0.1.0,1)" />
+        <dependency id="Spritely.Build.JavaScriptTests" version="[0.1.2,1)" />
 	</dependencies>
   </metadata>
   <files>
