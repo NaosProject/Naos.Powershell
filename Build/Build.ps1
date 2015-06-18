@@ -47,6 +47,9 @@ Will cause any warnings from the build to be displayed as errors and will fail t
 .PARAMETER RunCodeAnalysis
 Will cause code analysis to be run during the build.
 
+.PARAMETER RunJavaScriptTests
+Will cause JavaScript tests to be run during the build.
+
 .PARAMETER SaveFileAsBuildArtifact
 An optional scriptblock that will be passed the output file from MsBuild with diagnostic level output for late review.
 
@@ -78,6 +81,7 @@ param(
 		[string] $WorkingDirectory,
 		[bool] $TreatBuildWarningsAsErrors,
 		[bool] $RunCodeAnalysis,
+		[bool] $RunJavaScriptTests,
 		[scriptblock] $SaveFileAsBuildArtifact,
 		[switch] $Run
 )
@@ -250,8 +254,10 @@ Write-Output 'BEGIN Building Release For All Projects'
 	$msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
 	$msBuildReleasePropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
 	$msBuildReleasePropertiesDictionary.Add('PackagesRootPath', $BuildPackagesDirectory)
+	$msBuildReleasePropertiesDictionary.Add('BuildExtensionsRootPath', $BuildPackagesDirectory)
 	$msBuildReleasePropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
 	$msBuildReleasePropertiesDictionary.Add('RunCodeAnalysis', $RunCodeAnalysis)
+	$msBuildReleasePropertiesDictionary.Add('RunJavaScriptTests', $RunJavaScriptTests)
 	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary -diagnosticLogFileName $diagnosticLogFilePathRelease -customLogger $CustomMsBuildLogger
 	if ($SaveFileAsBuildArtifact -ne $null)
 	{
@@ -266,8 +272,10 @@ Write-Output 'BEGIN Building Debug For All Projects'
 	$msBuildDebugPropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
 	$msBuildDebugPropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
 	$msBuildDebugPropertiesDictionary.Add('PackagesRootPath', $BuildPackagesDirectory)
+	$msBuildDebugPropertiesDictionary.Add('BuildExtensionsRootPath', $BuildPackagesDirectory)
 	$msBuildDebugPropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
 	$msBuildDebugPropertiesDictionary.Add('RunCodeAnalysis', $RunCodeAnalysis)
+	$msBuildDebugPropertiesDictionary.Add('RunJavaScriptTests', $RunJavaScriptTests)
 	MsBuild-Custom -customBuildFilePath $buildProjFile -target 'build' -customPropertiesDictionary $msBuildDebugPropertiesDictionary -diagnosticLogFileName $diagnosticLogFilePathDebug -customLogger $CustomMsBuildLogger
 	if ($SaveFileAsBuildArtifact -ne $null)
 	{
