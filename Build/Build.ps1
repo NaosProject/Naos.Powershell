@@ -23,6 +23,9 @@ The api key of the NuGet gallery to push packages to (if not present the push wi
 .PARAMETER BuildPackagesDirectory
 The directory where build packages can be found.
 
+.PARAMETER BuildExtensionsDirectory
+The directory where build extensions can be found.
+
 .PARAMETER PackageUpdateStrategyPrivateGallery
 Ability to specify whether NuGet packages from the private gallery are updated or not [None, UpdateSafe, UpdateNormal, UpdatePreRelease] (None is default).
 
@@ -73,6 +76,7 @@ param(
 		[string] $GalleryUrl,
 		[string] $GalleryApiKey,
 		[string] $BuildPackagesDirectory,
+		[string] $BuildExtensionsDirectory,
 		[string] $PackagesOutputDirectory,
 		[string] $PackageUpdateStrategyPrivateGallery,
 		[string] $PackageUpdateStrategyPublicGallery,
@@ -114,12 +118,14 @@ try
 	Write-Output "   GalleryUrl: $GalleryUrl"
 	Write-Output "   GalleryApiKey: $(Help-HideAllButLastChars -ValueToMask $GalleryApiKey -RemainingChars 5)"
 	Write-Output "   BuildPackagesDirectory: $BuildPackagesDirectory"
+	Write-Output "   BuildExtensionsDirectory: $BuildExtensionsDirectory"
 	Write-Output "   PackagesOutputDirectory: $PackagesOutputDirectory"
 	Write-Output "   PackageUpdateStrategyPrivateGallery: $PackageUpdateStrategyPrivateGallery"
 	Write-Output "   PackageUpdateStrategyPublicGallery: $PackageUpdateStrategyPublicGallery"
 	Write-Output "   StyleCopTargetsPath: $StyleCopTargetsPath"
 	Write-Output "   TreatBuildWarningsAsErrors: $TreatBuildWarningsAsErrors"
 	Write-Output "   RunCodeAnalysis: $RunCodeAnalysis"
+	Write-Output "   RunJavaScriptTests: $RunJavaScriptTests"
 	
     $scriptStartTime = [DateTime]::Now
 
@@ -133,6 +139,11 @@ try
 	if ([String]::IsNullOrEmpty($BuildPackagesDirectory))
 	{
 		$BuildPackagesDirectory = $buildScriptsPath + "\..\.."
+	}
+
+	if ([String]::IsNullOrEmpty($BuildExtensionsDirectory))
+	{
+		$BuildExtensionsDirectory = $BuildPackagesDirectory
 	}
 
 	if ([String]::IsNullOrEmpty($PackagesOutputDirectory))
@@ -254,7 +265,7 @@ Write-Output 'BEGIN Building Release For All Projects'
 	$msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
 	$msBuildReleasePropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
 	$msBuildReleasePropertiesDictionary.Add('PackagesRootPath', $BuildPackagesDirectory)
-	$msBuildReleasePropertiesDictionary.Add('BuildExtensionsRootPath', $BuildPackagesDirectory)
+	$msBuildReleasePropertiesDictionary.Add('BuildExtensionsRootPath', $BuildExtensionsDirectory)
 	$msBuildReleasePropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
 	$msBuildReleasePropertiesDictionary.Add('RunCodeAnalysis', $RunCodeAnalysis)
 	$msBuildReleasePropertiesDictionary.Add('RunJavaScriptTests', $RunJavaScriptTests)
@@ -272,7 +283,7 @@ Write-Output 'BEGIN Building Debug For All Projects'
 	$msBuildDebugPropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
 	$msBuildDebugPropertiesDictionary.Add('SourceRootPath', $SourceDirectory)
 	$msBuildDebugPropertiesDictionary.Add('PackagesRootPath', $BuildPackagesDirectory)
-	$msBuildDebugPropertiesDictionary.Add('BuildExtensionsRootPath', $BuildPackagesDirectory)
+	$msBuildDebugPropertiesDictionary.Add('BuildExtensionsRootPath', $BuildExtensionsDirectory)
 	$msBuildDebugPropertiesDictionary.Add('StyleCopImportsTargetsFilePath', $StyleCopTargetsPath)
 	$msBuildDebugPropertiesDictionary.Add('RunCodeAnalysis', $RunCodeAnalysis)
 	$msBuildDebugPropertiesDictionary.Add('RunJavaScriptTests', $RunJavaScriptTests)
