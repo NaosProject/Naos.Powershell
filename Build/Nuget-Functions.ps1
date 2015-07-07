@@ -134,7 +134,7 @@ function NuGet-GetNuSpecDeploymentFilePath([string] $projFilePath)
 	return $nuspecFilePath
 }
 
-function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array] $projectReferences, [System.Array] $filesToPackage, [string] $targetFramework, [string] $targetDir = $null, [bool] $throwOnError = $true, [string] $maintainSubpathFrom = $null)
+function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array] $projectReferences, [System.Collections.HashTable] $filesToPackageFolderMap, [bool] $throwOnError = $true, [string] $maintainSubpathFrom = $null)
 {
 	$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
 
@@ -158,18 +158,12 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 	[xml]$nuspec = Get-Content (Resolve-Path($nuspecFilePath))
 	$deps = $nuspec.CreateElement('dependencies')
 
-	$framework = $targetFramework.Replace('v', '').Replace('.', '') # change 'v4.0' to '40'
-	
-	if ([String]::IsNullOrEmpty($targetDir))
-	{
-		$targetDir = "lib\$framework"
-	}
-	
 	$files = $nuspec.CreateElement('files')
 
 	Write-Host "Maintaining sub paths in target of package from: $maintainSubpathFrom"
-	$filesToPackage |
+	$filesToPackageFolderMap.Keys |
 	%{
+		$targetDir = $filesToPackageFolderMap[$_]
 		if (Test-Path $_)
 		{
 			$targetFile = $targetDir
