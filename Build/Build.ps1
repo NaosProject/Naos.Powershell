@@ -340,24 +340,48 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 			# we do this recursive because we want n level deep dependencies to make sure all packages needed make it to the nuspec file
 			$projectReferences = MsBuild-GetProjectReferences -projectFilePath $projFilePath -recursive $true
 			$framework = MsBuild-GetTargetFramework -projectFilePath $projFilePath
+			$frameworkThinned = $framework.Replace('v', '').Replace('.', '') # change 'v4.0' to '40'
+			$targetLibDir = "lib\net$frameworkThinned"
 
-			[System.Array] $outputFiles
+			$outputFilesPackageFolderMap = New-Object System.Collections.HashTable (@{})
 			[string] $packageTargetDir = $null # need to set for website, default will work fine for libraries so leave null for that
 			[string] $maintainSubpathFrom = $null # need to keep sub pathing for websites because files will duplicate (this isn't an issue for libraries so ignore)
+			$binRelease = Join-Path (Join-Path (Split-Path $projFilePath) 'bin') 'release'
+			$pathLessOutputFiles = MsBuild-GetOutputFiles -projectFilePath $projFilePath
+			
+			$projOutputFiles = $pathLessOutputFiles | %{Join-Path $binRelease $_}
+			$projOutputFiles | %{ $outputFilesPackageFolderMap.Add($_, $targetLibDir) }
 			if ($isWebProject)
 			{
 				Write-Output "Using output files from Publish at $webPublishPath"
+				# Copy PDBs over since publish excludes them
+				$webBinRelease = Join-Path (Split-Path $projFilePath) 'bin'
+				$originalOutputFiles = $pathLessOutputFiles | %{Join-Path $webBinRelease $_}
+
+				$webPublishPathBin = Join-Path $webPublishPath 'bin'
+				$originalOutputFiles | %{cp $_ $webPublishPathBin -Force}
+				
 				# PSIsContainer is checking to only get files (not dirs)
-				$outputFiles = ls $webPublishPath -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
-				$packageTargetDir = $innerPackageDirForWebPackage
+				$webpublishedFiles = ls $webPublishPath -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
+				
+				$outputFilesPackageFolderMap.Clear()
+				$webpublishedFiles | %{ $outputFilesPackageFolderMap.Add($_, $innerPackageDirForWebPackage) }
+				
 				$maintainSubpathFrom = $webPublishPath
 			}
 			else
 			{
 				Write-Output "Using output files specified in $projFilePath"
-				$pathLessOutputFiles = MsBuild-GetOutputFiles -projectFilePath $projFilePath
-				$binRelease = Join-Path (Join-Path (Split-Path $projFilePath) 'bin') 'release'
-				$outputFiles = $pathLessOutputFiles | %{Join-Path $binRelease $_}
+				$projFolderPath = Split-Path $projFilePath
+				$itsConfigPath = Join-Path $projFolderPath '.config'
+
+				if (Test-Path $itsConfigPath)
+				{
+					$itsConfigFiles = ls $itsConfigPath -Recurse
+					$itsConfigFilePaths = $itsConfigFiles | ?{-not $_.PSIsContainer} | %{ $_.FullName } # only get files...
+					
+					$itsConfigFilePaths | %{ $outputFilesPackageFolderMap.Add($_, $(Split-Path $_).Replace($projFolderPath, '')) }
+				}
 			}
 
 			# we'll delete one if it's created at end...
@@ -368,13 +392,12 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 				$nuspecFileCreated = $true
 				
 				# Create a NuSpec file from project if there isn't a custom one present
-				NuGet-CreateNuSpecFileFromProject -projFilePath $projFilePath -projectReferences $projectReferences -filesToPackage $outputFiles -targetFramework $framework -targetDir $packageTargetDir -maintainSubpathFrom $maintainSubpathFrom
+				NuGet-CreateNuSpecFileFromProject -projFilePath $projFilePath -projectReferences $projectReferences -filesToPackageFolderMap $outputFilesPackageFolderMap -maintainSubpathFrom $maintainSubpathFrom
 			}
 			else
 			{
 				Write-Output "Using existing NuSpec file: $NuSpecFilePath"
 			}
-			
 
 			$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
 			$createdPackagePaths.Add($packageFile)
