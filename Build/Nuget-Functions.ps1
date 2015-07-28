@@ -194,7 +194,7 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 		
 		if ($packageNodes -ne $null)
 		{
-			$packageNodes |
+			$packageNodes | ?{$_.developmentDependency -ne $true} |
 			%{
 				$newElement = $nuspec.CreateElement('dependency')
 				$newElement.SetAttribute('id', $_.id)
