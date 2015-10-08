@@ -205,7 +205,8 @@ try
 	$projectFilePaths = MsBuild-GetProjectsFromSolution -solutionFilePath $solutionFilePath
 	$pkgFiles = ls $SourceDirectory -filter packages.config -recurse | %{if(Test-Path($_.FullName)){$_.FullName}}
 	$pkgDir = Join-Path (Split-Path $solutionFilePath) 'packages'
-	$innerPackageDirForWebPackage = 'packagedWebsite' # this value must match whats in the remote deployment script logic in Deploy-Functions.ps1 (Deploy-GetWebsiteDeploymentScriptContents)
+	$innerPackageDirForWebPackage = 'packagedWebsite' # this value must match whats in the remote deployment logic
+	$innerPackageDirForConsoleAppPackage = 'packagedConsoleApp' # this value must match whats in the deployment logic
 	$fileSystemPublishFilePath = Join-Path $buildScriptsPath 'LocalFileSystemDeploy.pubxml'
 	$neccessaryFrameworkVersionForPublish = 4.5
 	$createdPackagePaths = New-Object 'System.Collections.Generic.List[String]'
@@ -323,18 +324,20 @@ Write-Output 'BEGIN Publish All Web Projects'
 	}
 Write-Output 'END Publish All Web Projects'
 
-Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects, and Custom NuSpec files'
+Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects, Console Apps, and Custom NuSpec files'
 	$projectFilePaths | 
 	%{
 		$projFilePath = Resolve-Path $_
 		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
 		$isNonTestLibrary = ((MsBuild-IsLibrary -projectFilePath $projFilePath) -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj'))))
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
+		$isConsoleApp = MsBuild-IsConsoleApp -projectFilePath $projFilePath
 		$webPublishPath = Join-Path $WorkingDirectory "$($solutionFileName)_$innerPackageDirForWebPackage"
 		
 		if ( $isNonTestLibrary -or 
 			 (Test-Path $nuspecFilePath) -or 
-			 ($isWebProject -and (Test-Path $webPublishPath))
+			 ($isWebProject -and (Test-Path $webPublishPath) -or
+			 $isConsoleApp)
 		   )
 		{
 			# we do this recursive because we want n level deep dependencies to make sure all packages needed make it to the nuspec file
@@ -369,6 +372,19 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 				
 				$maintainSubpathFrom = $webPublishPath
 			}
+			elseif($isConsoleApp)
+			{
+				$binRelease = Join-Path (Split-Path $projFilePath) 'bin\release'
+				Write-Output "Using output files from Publish at $binRelease"
+
+				# PSIsContainer is checking to only get files (not dirs)
+				$publishedFiles = ls $binRelease -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
+				
+				$outputFilesPackageFolderMap.Clear()
+				$publishedFiles | %{ $outputFilesPackageFolderMap.Add($_, $innerPackageDirForConsoleAppPackage) }
+				
+				$maintainSubpathFrom = $binRelease
+			}
 			else
 			{
 				Write-Output "Using output files specified in $projFilePath"
@@ -396,6 +412,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 			}
 			else
 			{
+				# TODO: Support partial NuSpec here by adding missing nodes of output files AND/OR dependencies...
 				Write-Output "Using existing NuSpec file: $NuSpecFilePath"
 			}
 
