@@ -196,9 +196,16 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 		{
 			$packageNodes | ?{$_.developmentDependency -ne $true} |
 			%{
+				# this will check for a constrained version first, otherwise just note what's there...
+				$dependencyVersion = $_.allowedVersions
+				if ([string]::IsNullOrEmpty($dependencyVersion))
+				{
+					$dependencyVersion = $_.version
+				}
+
 				$newElement = $nuspec.CreateElement('dependency')
 				$newElement.SetAttribute('id', $_.id)
-				$newElement.SetAttribute('version', $_.version)
+				$newElement.SetAttribute('version', $dependencyVersion)
 				[void]$deps.AppendChild($newElement)
 			}
 		}
