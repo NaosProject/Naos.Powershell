@@ -306,7 +306,7 @@ Write-Output 'BEGIN Publish All Web Projects'
 			$framework = $framework.Replace('v', '') # strip off leading v for compare
 			$frameworkNewEnough = Version-IsVersionSameOrNewerThan -versionToCompare $neccessaryFrameworkVersionForPublish -versionToCheck $framework
 			
-			$outputFilePath = Join-Path $WorkingDirectory "$($solutionFileName)_$innerPackageDirForWebPackage"
+			$outputFilePath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
 			if ($frameworkNewEnough) # 4.0 won't work (needs additional data)
 			{
 				Write-Output "Publishing $projFilePath to $outputFilePath using $fileSystemPublishFilePath"
