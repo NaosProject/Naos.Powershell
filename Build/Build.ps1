@@ -201,7 +201,6 @@ try
 	$solutionFileName = (Get-Item $solutionFilePath).Name.Replace(".$($SOLUTION_FILE_EXTENSION)", '')
 	$diagnosticLogFilePathRelease = Join-Path $WorkingDirectory "$($solutionFileName)_MsBuildDiagnosticOutputRelease.log"
 	$diagnosticLogFilePathDebug = Join-Path $WorkingDirectory "$($solutionFileName)_MsBuildDiagnosticOutputDebug.log"
-	$diagnosticLogFilePathPublish = Join-Path $WorkingDirectory "$($solutionFileName)_MsBuildDiagnosticOutputPublish.log"
 	$projectFilePaths = MsBuild-GetProjectsFromSolution -solutionFilePath $solutionFilePath
 	$pkgFiles = ls $SourceDirectory -filter packages.config -recurse | %{if(Test-Path($_.FullName)){$_.FullName}}
 	$pkgDir = Join-Path (Split-Path $solutionFilePath) 'packages'
@@ -309,6 +308,7 @@ Write-Output 'BEGIN Publish All Web Projects'
 			$outputFilePath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
 			if ($frameworkNewEnough) # 4.0 won't work (needs additional data)
 			{
+				$diagnosticLogFilePathPublish = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_MsBuildDiagnosticOutputPublish.log"
 				Write-Output "Publishing $projFilePath to $outputFilePath using $fileSystemPublishFilePath"
 				MsBuild-PublishToFileSystem -outputFilePath $outputFilePath -projectFilePath $projFilePath -pubXmlFilePath $fileSystemPublishFilePath -diagnosticLogFileName $diagnosticLogFilePathPublish
 				if ($SaveFileAsBuildArtifact -ne $null)
