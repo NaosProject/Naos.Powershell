@@ -328,11 +328,12 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 	$projectFilePaths | 
 	%{
 		$projFilePath = Resolve-Path $_
+		$projFileItem = Get-Item $projFilePath
 		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
 		$isNonTestLibrary = ((MsBuild-IsLibrary -projectFilePath $projFilePath) -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj'))))
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
 		$isConsoleApp = MsBuild-IsConsoleApp -projectFilePath $projFilePath
-		$webPublishPath = Join-Path $WorkingDirectory "$($solutionFileName)_$innerPackageDirForWebPackage"
+		$webPublishPath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
 		
 		if ( $isNonTestLibrary -or 
 			 (Test-Path $nuspecFilePath) -or 
