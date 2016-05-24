@@ -184,17 +184,7 @@ try
 		throw "Must specify the private gallery url if using an update strategy for the private gallery."
 	}
 	
-	$informationalVersion = $Version
-	if ((-not [String]::IsNullOrEmpty($BranchName)) -and ($BranchName -ne 'master'))
-	{
-		$cleanBranchName = $BranchName.Replace('_', '').Replace('-', '').Replace(' ', '').Replace('+', '').Replace('.', '')
-		if ($cleanBranchName.Length -gt 20)
-		{
-			$cleanBranchName = $cleanBranchName.Substring(0, 20)
-		}
-		
-		$informationalVersion = "$Version-$cleanBranchName"
-	}
+	$informationalVersion = Nuget-CreatePreReleaseSupportedVersion -version $Version -branchName $BranchName
 	
 	$WorkingDirectory = Resolve-Path $WorkingDirectory
 	
