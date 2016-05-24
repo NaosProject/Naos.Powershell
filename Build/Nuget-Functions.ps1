@@ -309,6 +309,23 @@ function Nuget-PublishPackage([string] $packagePath, [string] $apiUrl, [string] 
 	if(($lastExitCode -ne 0) -and ($throwOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to run NuGetCommand push on $packagePath to $apiUrl" }
 }
 
+function Nuget-CreatePreReleaseSupportedVersion([string] $version, [string] $branchName)
+{
+	$preReleaseSupportVersion = $version
+	if ((-not [String]::IsNullOrEmpty($branchName)) -and ($branchName -ne 'master'))
+	{
+		$cleanBranchName = $branchName.Replace('_', '').Replace('-', '').Replace(' ', '').Replace('+', '').Replace('.', '')
+		if ($cleanBranchName.Length -gt 20)
+		{
+			$cleanBranchName = $cleanBranchName.Substring(0, 20)
+		}
+		
+		$preReleaseSupportVersion = "$version-$cleanBranchName"
+	}
+
+	return $preReleaseSupportVersion
+}
+
 function Nuget-ConstrainVersionToCurrent([string] $packageFilePath)
 {
 	[xml] $pkgFile = Get-Content $packageFilePath
