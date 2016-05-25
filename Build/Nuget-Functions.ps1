@@ -94,6 +94,8 @@ function NuGet-GetLocalGalleryIdVersionDictionary([String] $source)
 
 function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $authors, [string] $nuSpecTemplateFilePath = $null)
 {
+	$recipeFolderPath = Resolve-Path $recipeFolderPath
+
 	$folderName = Split-Path $recipeFolderPath -Leaf
 	$nuSpecFilePath = Join-Path $recipeFolderPath "$folderName.nuspec"
 	$installScriptPath = Join-Path $recipeFolderPath "InstallNeededToMarkConfigCopyToOutput.ps1"
@@ -155,6 +157,12 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 		$fileName = $_.Name
 		$filePath = $_.FullName
 		$relativeFilePathToRecipeDirectory = $filePath.Replace($recipeFolderPath, '')
+		if ($relativeFilePathToRecipeDirectory.StartsWith('/') -or $relativeFilePathToRecipeDirectory.StartsWith('\'))
+		{
+			# strip off the leading / or \ because it will mess things up...
+			$relativeFilePathToRecipeDirectory = $relativeFilePathToRecipeDirectory.Substring(1, $relativeFilePathToRecipeDirectory.Length - 1)
+		}
+		
 		$frameWorkPiece = 'net45'
 		if ($relativeFilePathToRecipeDirectory.StartsWith('.config'))
 		{
