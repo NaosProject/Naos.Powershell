@@ -96,9 +96,19 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 {
 	$folderName = Split-Path $recipeFolderPath -Leaf
 	$nuSpecFilePath = Join-Path $recipeFolderPath "$folderName.nuspec"
+	$installScriptPath = Join-Path $recipeFolderPath "InstallNeededToMarkConfigCopyToOutput.ps1"
 
+	$installScript = ''
+	$installScript += 'param($installPath, $toolsPath, $package, $project)' + [Environment]::NewLine
+	$installScript += '#$configItem = $project.ProjectItems.Item("NLog.config")' + [Environment]::NewLine
+	$installScript += "# set 'Copy To Output Directory' to ?'0:Never, 1:Always, 2:IfNewer'" + [Environment]::NewLine
+	$installScript += '#$configItem.Properties.Item("CopyToOutputDirectory").Value = 2' + [Environment]::NewLine
+	$installScript += "# set 'Build Action' to ?'0:None, 1:Compile, 2:Content, 3:EmbeddedResource'" + [Environment]::NewLine
+	$installScript += '#$configItem.Properties.Item("BuildAction").Value = 2' + [Environment]::NewLine
+	
 	# ensure bare minimum is there
-	$contents = "<?xml version=`"1.0`"?>" + [Environment]::NewLine
+	$contents = ''
+	$contents += "<?xml version=`"1.0`"?>" + [Environment]::NewLine
 	$contents += "<package>" + [Environment]::NewLine
 	$contents += "    <metadata>" + [Environment]::NewLine
 	$contents += "        <id>$folderName</id>" + [Environment]::NewLine
@@ -133,6 +143,7 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 	
 	$files = ls $recipeFolderPath -Recurse | ?{-not $_.PSIsContainer} | ?{-not $_.FullName.EndsWith('.nuspec')} | ?{-not $_.FullName.EndsWith('.override-nuspec')} | ?{-not $_.FullName.EndsWith('.nupkg')}
 
+	$needsInstall = $false
 	$files | %{
 		$fileName = $_.Name
 		$filePath = $_.FullName
@@ -141,6 +152,14 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 		if ($relativeFilePathToRecipeDirectory.StartsWith('.config'))
 		{
 			$frameWorkPiece = 'any'
+			$needsInstall = $true
+			$guid = [System.Guid]::NewGuid().ToString().Replace('-', '')
+			# add to the install script to set copy ALWAYS and compile CONTENT
+			$installScript += '$configItem' + $guid + ' = $project.ProjectItems.Item("' + $relativeFilePathToRecipeDirectory + '")' + [Environment]::NewLine
+			# set 'Copy To Output Directory' to ?'0:Never, 1:Always, 2:IfNewer
+			$installScript += '$configItem' + $guid + '.Properties.Item("CopyToOutputDirectory").Value = 1' + [Environment]::NewLine
+			# set 'Build Action' to ?'0:None, 1:Compile, 2:Content, 3:EmbeddedResource'
+			$installScript += '$configItem' + $guid + '.Properties.Item("BuildAction").Value = 2' + [Environment]::NewLine
 		}
 		
 		$targetPath = Join-Path "content\$frameWorkPiece\" $relativeFilePathToRecipeDirectory
@@ -149,6 +168,15 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 		$fileNode.SetAttribute('src', $filePath)
 		$fileNode.SetAttribute('target', $targetPath)
 		[void]$filesNode.AppendChild($fileNode)
+	}
+	
+	if ($needsInstall)
+	{
+		$installScript | Out-File $installScriptPath
+		$installFileNode = $nuSpecFileXml.CreateElement('file')
+		$installFileNode.SetAttribute('src', $installScriptPath)
+		$installFileNode.SetAttribute('target', 'tools\Install.ps1')
+		[void]$filesNode.AppendChild($installFileNode)
 	}
 
 	[void]$nuSpecFileXml.package.AppendChild($filesNode)	
