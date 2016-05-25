@@ -131,7 +131,14 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 	}
 
 	# apply override if any
-	$overrideNuSpecFilePath = $(ls $recipeFolderPath -Filter *.override-nuspec).FullName
+	$overrideNuSpecFilePaths = ls $recipeFolderPath -Filter *.override-nuspec
+	if ($overrideNuSpecFilePaths.PSIsContainer)
+	{
+		throw 'Found multiple override files, only one is supported: ' + [string]::Join(',', $overrideNuSpecFilePaths)
+	}
+
+	$overrideNuSpecFilePath = $overrideNuSpecFilePaths.FullName
+	
 	if ($(-not [string]::IsNullOrEmpty($overrideNuSpecFilePath))  -and $(Test-Path $overrideNuSpecFilePath))
 	{
 		[xml] $overrideNuSpecFileXml = Get-Content $overrideNuSpecFilePath
