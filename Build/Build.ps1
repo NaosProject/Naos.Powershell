@@ -47,6 +47,9 @@ Path to an optional working directory to house temp files used during build proc
 .PARAMETER NuSpecTemplateFilePath
 Path to an optional template NuSpec file to declare common things like Authors/Owners/ProjectSite/License/Etc.
 
+.PARAMETER Authors
+Authors to write to NuSpec files.
+
 .PARAMETER TreatBuildWarningsAsErrors
 Will cause any warnings from the build to be displayed as errors and will fail the build.
 
@@ -87,6 +90,7 @@ param(
 		[string] $CustomMsBuildLogger,
 		[string] $WorkingDirectory,
 		[string] $NuSpecTemplateFilePath,
+		[string] $Authors,
 		[bool] $TreatBuildWarningsAsErrors,
 		[bool] $RunCodeAnalysis,
 		[bool] $RunJavaScriptTests,

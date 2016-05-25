@@ -264,7 +264,7 @@ function NuGet-GetNuSpecDeploymentFilePath([string] $projFilePath)
 	return $nuspecFilePath
 }
 
-function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array] $projectReferences, [System.Collections.HashTable] $filesToPackageFolderMap, [bool] $throwOnError = $true, [string] $maintainSubpathFrom = $null, [string] $nuSpecTemplateFilePath = $null)
+function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array] $projectReferences, [System.Collections.HashTable] $filesToPackageFolderMap, [string] $authors, [bool] $throwOnError = $true, [string] $maintainSubpathFrom = $null, [string] $nuSpecTemplateFilePath = $null)
 {
 	$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
 
@@ -355,7 +355,7 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 	$fileName = [System.IO.Path]::GetFileName($projFilePath).Replace('.csproj', '').Replace('.vbproj', '')
 	$id.InnerXml = $fileName
 	$author = $nuspec.SelectSingleNode('package/metadata/authors')
-	$author.InnerXml = "$($env:ComputerName)\$($env:UserName)"
+	$author.InnerXml = $authors
 
 	# Remove items not being used
 	[void]$nuspec.package.metadata.RemoveChild($nuspec.SelectSingleNode('package/metadata/title'))
