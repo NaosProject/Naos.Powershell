@@ -92,70 +92,40 @@ function NuGet-GetLocalGalleryIdVersionDictionary([String] $source)
 	return $packageIdVersionDictionary
 }
 
-function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $nuSpecTemplateFilePath = $null)
+function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $authors, [string] $nuSpecTemplateFilePath = $null)
 {
 	$folderName = Split-Path $recipeFolderPath -Leaf
 	$nuSpecFilePath = Join-Path $recipeFolderPath "$folderName.nuspec"
 
-	if ($(-not [string]::IsNullOrEmpty($nuSpecTemplateFilePath)) -and $(Test-Path $nuSpecTemplateFilePath))
-	{
-		cp $nuSpecTemplateFilePath $nuSpecFilePath -Force
-	}
-	else
-	{
-		$contents = "<?xml version=`"1.0`"?>" + [Environment]::NewLine
-		$contents += "<package>" + [Environment]::NewLine
-		$contents += "    <metadata>" + [Environment]::NewLine
-		$contents += "        <id>$folderName</id>" + [Environment]::NewLine
-		$contents += '        <version>$version$</version>' + [Environment]::NewLine
-		$contents += "        <title>$folderName</title>" + [Environment]::NewLine
-		$contents += "        <language>en-US</language>" + [Environment]::NewLine
-		$contents += "        <requireLicenseAcceptance>false</requireLicenseAcceptance>" + [Environment]::NewLine
-		$contents += "        <summary>$folderName</summary>" + [Environment]::NewLine
-		$contents += "        <description>$folderName</description>" + [Environment]::NewLine
-		$contents += "        <developmentDependency>true</developmentDependency>" + [Environment]::NewLine
-		$contents += "    </metadata>" + [Environment]::NewLine
-		$contents += "</package>"
-		
-		$contents | Out-File $nuSpecFilePath -Force
-	}
+	# ensure bare minimum is there
+	$contents = "<?xml version=`"1.0`"?>" + [Environment]::NewLine
+	$contents += "<package>" + [Environment]::NewLine
+	$contents += "    <metadata>" + [Environment]::NewLine
+	$contents += "        <id>$folderName</id>" + [Environment]::NewLine
+	$contents += '        <version>$version$</version>' + [Environment]::NewLine
+	$contents += "        <authors>$authors</authors>" + [Environment]::NewLine
+	$contents += "        <description>$folderName</description>" + [Environment]::NewLine
+	$contents += "        <developmentDependency>true</developmentDependency>" + [Environment]::NewLine
+	$contents += "    </metadata>" + [Environment]::NewLine
+	$contents += "</package>"
+	
+	$contents | Out-File $nuSpecFilePath -Force
 
-	$nuSpecFileText = Get-Content $nuSpecFilePath
-	$nuSpecFileText = $nuSpecFileText.Replace('$folderName$', $folderName)
-	$nuSpecFileText | Out-File $nuSpecFilePath
-			
 	[xml] $nuSpecFileXml = Get-Content $nuSpecFilePath
 
+	# apply custom template if any
+	if ($(-not [string]::IsNullOrEmpty($nuSpecTemplateFilePath)) -and $(Test-Path $nuSpecTemplateFilePath))
+	{
+		[xml] $nuSpecTemplateFileXml = Get-Content $nuSpecTemplateFilePath
+		NuGet-OverrideNuSpec -nuSpecFileXml $nuSpecFileXml -overrideNuSpecFileXml $nuSpecTemplateFileXml -autoPackageId $folderName
+	}
+
+	# apply override if any
 	$overrideNuSpecFilePath = $(ls $recipeFolderPath -Filter *.override-nuspec).FullName
 	if ($(-not [string]::IsNullOrEmpty($overrideNuSpecFilePath))  -and $(Test-Path $overrideNuSpecFilePath))
 	{
-		$deepImport = $true
 		[xml] $overrideNuSpecFileXml = Get-Content $overrideNuSpecFilePath
-		
-		$overrideNuSpecFileXml.package.ChildNodes | %{
-			$node = $_
-			$name = $node.Name
-			if ($name -ne 'metadata' -and $name -ne 'files')
-			{
-				$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
-				[void]$nuSpecFileXml.package.AppendChild($importedNode)
-			}
-		}
-		
-		$overrideNuSpecFileXml.package.metadata.ChildNodes | %{
-			$node = $_
-			$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
-			$existingNode = $nuSpecFileXml.package.metadata.ChildNodes | ?{$_.Name -eq $importedNode.Name}
-			if ($existingNode -ne $null)
-			{
-				[void]$nuSpecFileXml.package.metadata.ReplaceChild($importedNode, $existingNode)
-			}
-			else
-			{
-				$importedNode.InnerXml = $importedNode.InnerXml.Replace('$folderName$', $folderName)
-				[void]$nuSpecFileXml.package.metadata.AppendChild($importedNode)
-			}
-		}
+		NuGet-OverrideNuSpec -nuSpecFileXml $nuSpecFileXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $folderName
 	}
 
 	# add files...
@@ -183,7 +153,38 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 
 	[void]$nuSpecFileXml.package.AppendChild($filesNode)	
 	
+	# save updated file
 	$nuSpecFileXml.Save($nuSpecFilePath)	
+}
+
+function NuGet-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml, [string] $autoPackageId)
+{
+	$deepImport = $true
+	
+	$overrideNuSpecFileXml.package.ChildNodes | %{
+		$node = $_
+		$name = $node.Name
+		if ($name -ne 'metadata' -and $name -ne 'files')
+		{
+			$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
+			[void]$nuSpecFileXml.package.AppendChild($importedNode)
+		}
+	}
+	
+	$overrideNuSpecFileXml.package.metadata.ChildNodes | %{
+		$node = $_
+		$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
+		$existingNode = $nuSpecFileXml.package.metadata.ChildNodes | ?{$_.Name -eq $importedNode.Name}
+		if ($existingNode -ne $null)
+		{
+			[void]$nuSpecFileXml.package.metadata.ReplaceChild($importedNode, $existingNode)
+		}
+		else
+		{
+			$importedNode.InnerXml = $importedNode.InnerXml.Replace('$autoPackageId$', $autoPackageId)
+			[void]$nuSpecFileXml.package.metadata.AppendChild($importedNode)
+		}
+	}
 }
 
 function NuGet-CreateNuSpecExternalWrapper([string] $externalId, [string] $version, [string] $outputFile, [string] $packagePrefix = 'ExternallyWrapped')
@@ -336,6 +337,15 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 	}
 
 	$nuspec.SelectSingleNode('package/metadata/description').InnerXml = "Created on $([System.DateTime]::Now.ToString('yyyy-MM-dd HH:mm'))"
+
+	$overrideNuSpecFilePath = $nuspecFilePath.Replace('.nuspec', '.override-nuspec')
+	if ($(-not [string]::IsNullOrEmpty($overrideNuSpecFilePath))  -and $(Test-Path $overrideNuSpecFilePath))
+	{
+		[xml] $overrideNuSpecFileXml = Get-Content $overrideNuSpecFilePath
+		NuGet-OverrideNuSpec -nuSpecFileXml $nuspec -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $fileName
+	}
+
+	
 	$nuspec.Save((Resolve-Path($nuspecFilePath)))
 	
 	return $nuspecFilePath
