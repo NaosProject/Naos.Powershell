@@ -18,7 +18,7 @@ if (-not (Test-Path $TempBuildPackagesDir)) { md $TempBuildPackagesDir | Out-Nul
 $TempBuildPackagesDir = Resolve-Path $TempBuildPackagesDir
 NuGet install Naos.Build -OutputDirectory $TempBuildPackagesDir
 
-$nuSpecTemplateFile = Join-Path (Join-Path (ls $TempBuildPackagesDir/Naos.Build.*).FullName 'scripts') 'NaosNuSpecTemplate.nuspec'
+$nuSpecTemplateFile = Join-Path (Join-Path (ls $TempBuildPackagesDir/Naos.Build.*).FullName 'scripts') 'NaosNuSpecTemplate.template-nuspec'
 
 $nugetFunctionsScriptPath = $(ls $TempBuildPackagesDir -Recurse | ?{$_.Name -eq 'NuGet-Functions.ps1'}).FullName
 
