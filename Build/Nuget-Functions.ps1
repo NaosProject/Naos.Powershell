@@ -92,6 +92,100 @@ function NuGet-GetLocalGalleryIdVersionDictionary([String] $source)
 	return $packageIdVersionDictionary
 }
 
+function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $nuSpecTemplateFilePath = $null)
+{
+	$folderName = Split-Path $recipeFolderPath -Leaf
+	$nuSpecFilePath = Join-Path $recipeFolderPath "$folderName.nuspec"
+
+	if ($(-not [string]::IsNullOrEmpty($nuSpecTemplateFilePath)) -and $(Test-Path $nuSpecTemplateFilePath))
+	{
+		cp $nuSpecTemplateFilePath $nuSpecFilePath -Force
+	}
+	else
+	{
+		$contents = "<?xml version=`"1.0`"?>" + [Environment]::NewLine
+		$contents += "<package>" + [Environment]::NewLine
+		$contents += "    <metadata>" + [Environment]::NewLine
+		$contents += "        <id>$folderName</id>" + [Environment]::NewLine
+		$contents += '        <version>$version$</version>' + [Environment]::NewLine
+		$contents += "        <title>$folderName</title>" + [Environment]::NewLine
+		$contents += "        <language>en-US</language>" + [Environment]::NewLine
+		$contents += "        <requireLicenseAcceptance>false</requireLicenseAcceptance>" + [Environment]::NewLine
+		$contents += "        <summary>$folderName</summary>" + [Environment]::NewLine
+		$contents += "        <description>$folderName</description>" + [Environment]::NewLine
+		$contents += "        <developmentDependency>true</developmentDependency>" + [Environment]::NewLine
+		$contents += "    </metadata>" + [Environment]::NewLine
+		$contents += "</package>"
+		
+		$contents | Out-File $nuSpecFilePath -Force
+	}
+
+	$nuSpecFileText = Get-Content $nuSpecFilePath
+	$nuSpecFileText = $nuSpecFileText.Replace('$folderName$', $folderName)
+	$nuSpecFileText | Out-File $nuSpecFilePath
+			
+	[xml] $nuSpecFileXml = Get-Content $nuSpecFilePath
+
+	$overrideNuSpecFilePath = $(ls $recipeFolderPath -Filter *.override-nuspec).FullName
+	if ($(-not [string]::IsNullOrEmpty($overrideNuSpecFilePath))  -and $(Test-Path $overrideNuSpecFilePath))
+	{
+		$deepImport = $true
+		[xml] $overrideNuSpecFileXml = Get-Content $overrideNuSpecFilePath
+		
+		$overrideNuSpecFileXml.package.ChildNodes | %{
+			$node = $_
+			$name = $node.Name
+			if ($name -ne 'metadata' -and $name -ne 'files')
+			{
+				$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
+				[void]$nuSpecFileXml.package.AppendChild($importedNode)
+			}
+		}
+		
+		$overrideNuSpecFileXml.package.metadata.ChildNodes | %{
+			$node = $_
+			$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
+			$existingNode = $nuSpecFileXml.package.metadata.ChildNodes | ?{$_.Name -eq $importedNode.Name}
+			if ($existingNode -ne $null)
+			{
+				[void]$nuSpecFileXml.package.metadata.ReplaceChild($importedNode, $existingNode)
+			}
+			else
+			{
+				$importedNode.InnerXml = $importedNode.InnerXml.Replace('$folderName$', $folderName)
+				[void]$nuSpecFileXml.package.metadata.AppendChild($importedNode)
+			}
+		}
+	}
+
+	# add files...
+	$filesNode = $nuSpecFileXml.CreateElement('files')
+	
+	$files = ls $recipeFolderPath -Recurse | ?{-not $_.PSIsContainer} | ?{-not $_.FullName.EndsWith('.nuspec')} | ?{-not $_.FullName.EndsWith('.override-nuspec')} | ?{-not $_.FullName.EndsWith('.nupkg')}
+
+	$files | %{
+		$fileName = $_.Name
+		$filePath = $_.FullName
+		$relativeFilePathToRecipeDirectory = $filePath.Replace($recipeFolderPath, '')
+		$frameWorkPiece = 'net45'
+		if ($relativeFilePathToRecipeDirectory.StartsWith('.config'))
+		{
+			$frameWorkPiece = 'any'
+		}
+		
+		$targetPath = Join-Path "content\$frameWorkPiece\" $relativeFilePathToRecipeDirectory
+		
+		$fileNode = $nuSpecFileXml.CreateElement('file')
+		$fileNode.SetAttribute('src', $filePath)
+		$fileNode.SetAttribute('target', $targetPath)
+		[void]$filesNode.AppendChild($fileNode)
+	}
+
+	[void]$nuSpecFileXml.package.AppendChild($filesNode)	
+	
+	$nuSpecFileXml.Save($nuSpecFilePath)	
+}
+
 function NuGet-CreateNuSpecExternalWrapper([string] $externalId, [string] $version, [string] $outputFile, [string] $packagePrefix = 'ExternallyWrapped')
 {
 	$contents = "<?xml version=`"1.0`" encoding=`"utf-16`"?>" + [Environment]::NewLine
