@@ -407,7 +407,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 				$nuspecFileCreated = $true
 				
 				# Create a NuSpec file from project if there isn't a custom one present
-				NuGet-CreateNuSpecFileFromProject -projFilePath $projFilePath -projectReferences $projectReferences -filesToPackageFolderMap $outputFilesPackageFolderMap -maintainSubpathFrom $maintainSubpathFrom -nuSpecTemplateFilePath $NuSpecTemplateFilePath
+				NuGet-CreateNuSpecFileFromProject -projFilePath $projFilePath -projectReferences $projectReferences -filesToPackageFolderMap $outputFilesPackageFolderMap -maintainSubpathFrom $maintainSubpathFrom -authors $Authors -nuSpecTemplateFilePath $NuSpecTemplateFilePath
 			}
 			else
 			{
