@@ -163,10 +163,11 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 			$relativeFilePathToRecipeDirectory = $relativeFilePathToRecipeDirectory.Substring(1, $relativeFilePathToRecipeDirectory.Length - 1)
 		}
 		
-		$frameWorkPiece = 'net45'
+		$frameWorkPiece = 'net45\'
 		if ($relativeFilePathToRecipeDirectory.StartsWith('.config'))
 		{
-			$frameWorkPiece = 'any'
+			$frameWorkPiece = '' # shouldn't need anything for raw content...
+			
 			$needsInstall = $true
 			$guid = [System.Guid]::NewGuid().ToString().Replace('-', '')
 			# add to the install script to set copy ALWAYS and compile CONTENT
@@ -183,7 +184,7 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 			$installScript += '$configItem' + $guid + '.Properties.Item("BuildAction").Value = 2' + [Environment]::NewLine
 		}
 		
-		$targetPath = Join-Path "content\$frameWorkPiece\" $relativeFilePathToRecipeDirectory
+		$targetPath = Join-Path "content\$frameWorkPiece" $relativeFilePathToRecipeDirectory
 		
 		$fileNode = $nuSpecFileXml.CreateElement('file')
 		$fileNode.SetAttribute('src', $filePath)
