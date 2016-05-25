@@ -172,7 +172,11 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 			# add to the install script to set copy ALWAYS and compile CONTENT
 			$installScript += '' + [Environment]::NewLine
 			$installScript += '# ' + $relativeFilePathToRecipeDirectory + [Environment]::NewLine
-			$installScript += '$configItem' + $guid + ' = $project.ProjectItems.Item("' + $relativeFilePathToRecipeDirectory + '")' + [Environment]::NewLine
+			$pathSplit = $relativeFilePathToRecipeDirectory.Replace('/', '\').Split('\')
+			$configItemExtraction = '$project.'
+			$pathSplit | %{$configItemExtraction += 'ProjectItems.Item("' + $_ + '").' }
+			$configItemExtraction = $configItemExtraction.Substring(0, $configItemExtraction.Length - 1) # trim trailing '.'
+			$installScript += '$configItem' + $guid + ' = ' + $configItemExtraction + [Environment]::NewLine
 			# set 'Copy To Output Directory' to ?'0:Never, 1:Always, 2:IfNewer
 			$installScript += '$configItem' + $guid + '.Properties.Item("CopyToOutputDirectory").Value = 1' + [Environment]::NewLine
 			# set 'Build Action' to ?'0:None, 1:Compile, 2:Content, 3:EmbeddedResource'
