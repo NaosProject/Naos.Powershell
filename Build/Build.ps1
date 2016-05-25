@@ -44,6 +44,9 @@ Path to an optional custom msbuild logger library to save output from build (oft
 .PARAMETER WorkingDirectory
 Path to an optional working directory to house temp files used during build process (very nice if building locally to not pollute the repo).
 
+.PARAMETER NuSpecTemplateFilePath
+Path to an optional template NuSpec file to declare common things like Authors/Owners/ProjectSite/License/Etc.
+
 .PARAMETER TreatBuildWarningsAsErrors
 Will cause any warnings from the build to be displayed as errors and will fail the build.
 
@@ -83,6 +86,7 @@ param(
 		[string] $StyleCopTargetsPath,
 		[string] $CustomMsBuildLogger,
 		[string] $WorkingDirectory,
+		[string] $NuSpecTemplateFilePath,
 		[bool] $TreatBuildWarningsAsErrors,
 		[bool] $RunCodeAnalysis,
 		[bool] $RunJavaScriptTests,
@@ -399,7 +403,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 				$nuspecFileCreated = $true
 				
 				# Create a NuSpec file from project if there isn't a custom one present
-				NuGet-CreateNuSpecFileFromProject -projFilePath $projFilePath -projectReferences $projectReferences -filesToPackageFolderMap $outputFilesPackageFolderMap -maintainSubpathFrom $maintainSubpathFrom
+				NuGet-CreateNuSpecFileFromProject -projFilePath $projFilePath -projectReferences $projectReferences -filesToPackageFolderMap $outputFilesPackageFolderMap -maintainSubpathFrom $maintainSubpathFrom -nuSpecTemplateFilePath $NuSpecTemplateFilePath
 			}
 			else
 			{

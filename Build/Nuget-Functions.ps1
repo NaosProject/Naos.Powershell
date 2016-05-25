@@ -98,7 +98,7 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 	$nuSpecFilePath = Join-Path $recipeFolderPath "$folderName.nuspec"
 	$installScriptPath = Join-Path $recipeFolderPath "InstallNeededToMarkConfigCopyToOutput.ps1"
 
-	$installScript = ''
+	$installScript = '' # got this idea from: http://stackoverflow.com/questions/21143817/set-content-files-to-copy-local-always-in-a-nuget-package
 	$installScript += 'param($installPath, $toolsPath, $package, $project)' + [Environment]::NewLine
 	$installScript += '#$configItem = $project.ProjectItems.Item("NLog.config")' + [Environment]::NewLine
 	$installScript += "# set 'Copy To Output Directory' to ?'0:Never, 1:Always, 2:IfNewer'" + [Environment]::NewLine
@@ -257,7 +257,7 @@ function NuGet-GetNuSpecDeploymentFilePath([string] $projFilePath)
 	return $nuspecFilePath
 }
 
-function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array] $projectReferences, [System.Collections.HashTable] $filesToPackageFolderMap, [bool] $throwOnError = $true, [string] $maintainSubpathFrom = $null)
+function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array] $projectReferences, [System.Collections.HashTable] $filesToPackageFolderMap, [bool] $throwOnError = $true, [string] $maintainSubpathFrom = $null, [string] $nuSpecTemplateFilePath = $null)
 {
 	$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
 
@@ -366,6 +366,12 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 
 	$nuspec.SelectSingleNode('package/metadata/description').InnerXml = "Created on $([System.DateTime]::Now.ToString('yyyy-MM-dd HH:mm'))"
 
+	if ($(-not [string]::IsNullOrEmpty($nuSpecTemplateFilePath)) -and $(Test-Path $nuSpecTemplateFilePath))
+	{
+		[xml] $nuSpecTemplateFileXml = Get-Content $nuSpecTemplateFilePath
+		NuGet-OverrideNuSpec -nuSpecFileXml $nuspec -overrideNuSpecFileXml $nuSpecTemplateFileXml -autoPackageId $fileName
+	}
+	
 	$overrideNuSpecFilePath = $nuspecFilePath.Replace('.nuspec', '.override-nuspec')
 	if ($(-not [string]::IsNullOrEmpty($overrideNuSpecFilePath))  -and $(Test-Path $overrideNuSpecFilePath))
 	{
