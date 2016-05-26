@@ -31,13 +31,12 @@ param(
 	[string] $ReferenceProjectName = $(throw 'Must provide a ReferenceProjectName'),
 	[string] $TargetProjectName = $null,
 	[string] $ApiToken = $(throw 'Must provide an ApiToken'),
-	[Array] $BlackList = @('Powershell','Build'),
+	[Array] $BlackList = @('asdfasdfasdf'),
 	[switch] $RunForTarget,
 	[switch] $RunForAll
 )
 try
 {
-	
 	$BlackList | %{
 		if ($ReferenceProjectName -eq $_)
 		{
@@ -69,7 +68,7 @@ try
 		}
 
 		$projects = Invoke-RestMethod -Uri 'https://ci.appveyor.com/api/projects' -Headers $headers -Method Get
-		$projects = $projects | ?{ $_.name -ne $buildProjectName } # filter out the build because it's totally different...
+		$projects = $projects | ?{ -not $BlackList.Contains($_.name) }
 		
 		$referenceProject = $projects | ?{ $_.name -eq $ReferenceProjectName }
 		$referenceProjectSettingsUrl = "https://ci.appveyor.com/api/projects/$($referenceProject.accountName)/$($referenceProject.slug)/settings/yaml"
