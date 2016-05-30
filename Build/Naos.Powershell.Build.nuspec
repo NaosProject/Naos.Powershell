@@ -3,11 +3,13 @@
   <metadata>
     <id>Naos.Powershell.Build</id>
     <version>$version$</version>
-    <authors>Naos LLC</authors>
+    <description>Powershell scripts necessary for continuous integration.</description>
+    <authors>Naos Project</authors>
+    <copyright>Copyright (c) 2016 Naos LLC</copyright>
+    <projectUrl>http://naosproject.com</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/NaosProject/Naos.Build/master/NAOS-NuGet-Icon.png</iconUrl>
+    <licenseUrl>https://opensource.org/licenses/MIT</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>The basic build tools for Continuous Integration.</description>
-    <copyright>Copyright 2014 Naos LLC</copyright>
-    <licenseUrl>http://www.naosllc.com</licenseUrl>
     <tags>Powershell, CI, Build, Naos</tags>
 	<dependencies>
         <dependency id="Spritely.Build" version="[0.2.1,1)" />
