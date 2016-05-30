@@ -395,7 +395,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 					$itsConfigFiles = ls $itsConfigPath -Recurse
 					$itsConfigFilePaths = $itsConfigFiles | ?{-not $_.PSIsContainer} | %{ $_.FullName } # only get files...
 					
-					$itsConfigFilePaths | %{ $outputFilesPackageFolderMap.Add($_, $(Split-Path $_).Replace($projFolderPath, '')) }
+					$itsConfigFilePaths | %{ $outputFilesPackageFolderMap.Add($_, $(Join-Path 'Configuration' $(Split-Path $_).Replace($projFolderPath, ''))) }
 				}
 			}
 
