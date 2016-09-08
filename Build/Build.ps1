@@ -17,9 +17,6 @@ The branch name (if applicable) of the source being built, this will be added to
 .PARAMETER GalleryUrl
 The url of the NuGet gallery to update packages from (if applicable) and push packages into.
 
-.PARAMETER GalleryApiKey
-The api key of the NuGet gallery to push packages to (if not present the push will not be performed).
-
 .PARAMETER BuildPackagesDirectory
 The directory where build packages can be found.
 
@@ -59,6 +56,9 @@ Will cause code analysis to be run during the build.
 .PARAMETER RunJavaScriptTests
 Will cause JavaScript tests to be run during the build.
 
+.PARAMETER PushNuGetPackageFile
+An optional scriptblock that will be passed the output file from a NuGet Pack for pushing to a gallery.
+
 .PARAMETER SaveFileAsBuildArtifact
 An optional scriptblock that will be passed the output file from MsBuild with diagnostic level output for late review.
 
@@ -80,7 +80,6 @@ param(
 		[string] $SourceDirectory,
 		[string] $BranchName,
 		[string] $GalleryUrl,
-		[string] $GalleryApiKey,
 		[string] $BuildPackagesDirectory,
 		[string] $BuildExtensionsDirectory,
 		[string] $PackagesOutputDirectory,
@@ -94,6 +93,7 @@ param(
 		[bool] $TreatBuildWarningsAsErrors,
 		[bool] $RunCodeAnalysis,
 		[bool] $RunJavaScriptTests,
+		[scriptblock] $PushNuGetPackageFile,
 		[scriptblock] $SaveFileAsBuildArtifact,
 		[switch] $Run
 )
@@ -124,7 +124,6 @@ try
 	Write-Output "   SourceDirectory: $SourceDirectory"
 	Write-Output "   BranchName: $BranchName"
 	Write-Output "   GalleryUrl: $GalleryUrl"
-	Write-Output "   GalleryApiKey: $(Help-HideAllButLastChars -ValueToMask $GalleryApiKey -RemainingChars 5)"
 	Write-Output "   BuildPackagesDirectory: $BuildPackagesDirectory"
 	Write-Output "   BuildExtensionsDirectory: $BuildExtensionsDirectory"
 	Write-Output "   PackagesOutputDirectory: $PackagesOutputDirectory"
@@ -437,23 +436,18 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 	}
 Write-Output 'END Create NuGet Packages'
 
-	if ((-not [String]::IsNullOrEmpty($GalleryUrl)) -and (-not [String]::IsNullOrEmpty($GalleryApiKey)))
+	if ($PushNuGetPackageFile -ne $null)
 	{
-Write-Output "BEGIN Push NuGet Packages to $GalleryUrl"
+Write-Output "BEGIN Push NuGet Packages"
 		$createdPackagePaths | %{
-			if ($SaveFileAsBuildArtifact -ne $null)
-			{
-				&$SaveFileAsBuildArtifact($_)
-			}
-
 			Write-Output "Pushing package $_"
-			Nuget-PublishPackage -packagePath $_ -apiUrl $GalleryUrl -apiKey $GalleryApiKey
+			&$PushNuGetPackageFile($_)
 		}
 Write-Output 'END Push NuGet Packages'
 	}
 	else 
 	{
-		Write-Output 'SKIPPING Push NuGet Packages because either the gallery url or key was not provided'
+		Write-Output 'SKIPPING Push NuGet Packages because the PushNuGetPackageFile scripblock was not provided'
 	}
 
 $scriptEndTime = [System.DateTime]::Now
