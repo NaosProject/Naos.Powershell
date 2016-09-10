@@ -1,4 +1,4 @@
-# PASTE THIS INTO APPVEYOUR
+# PASTE THIS INTO APPVEYOUR - Normal
 
 Write-Host $env:APPVEYOR_JOB_ID
 Write-Host $env:APPVEYOR_API_URL
@@ -9,25 +9,29 @@ $TempBuildPackagesDir = Resolve-Path $TempBuildPackagesDir
 NuGet install Naos.Build -OutputDirectory $TempBuildPackagesDir
 NuGet install StyleCop.MSBuild -OutputDirectory $TempBuildPackagesDir
 
-$styleCopTargetsPath = (ls "$TempBuildPackagesDir/*/*/*" -Filter 'StyleCop.MSBuild.Targets').FullName
-
 $nuSpecTemplateFile = Join-Path (Join-Path (ls $TempBuildPackagesDir/Naos.Build.*).FullName 'scripts') 'NaosNuSpecTemplate.template-nuspec'
 $nugetFunctionsScriptPath = $(ls $TempBuildPackagesDir -Recurse | ?{$_.Name -eq 'NuGet-Functions.ps1'}).FullName
 
 . $nugetFunctionsScriptPath
 
+$nugetScriptblock = { param([string] $fileName) 
+   Nuget-PublishPackage -packagePath $fileName -apiUrl $env:nuget_gallery_url -apiKey $env:nuget_api_key
+   Nuget-PublishPackage -packagePath $fileName -apiUrl $env:myget_gallery_url -apiKey $env:myget_api_key
+}
+
+$artifactScriptBlock = { param([string] $fileName) 
+#   Push-AppveyorArtifact $fileName 
+}
+
+
+$styleCopTargetsPath = (ls "$TempBuildPackagesDir/*/*/*" -Filter 'StyleCop.MSBuild.Targets').FullName
 
 $ourStyleCopSettingsFile = Join-Path (Join-Path (ls $TempBuildPackagesDir/Naos.Build.*).FullName 'scripts') 'Settings.StyleCop'
 $theirStyleCopSettingsFileLocation = Join-Path (ls $TempBuildPackagesDir/StyleCop.MSBuild.*).FullName 'tools'
 cp $ourStyleCopSettingsFile $theirStyleCopSettingsFileLocation -Force
 
-$nugetScriptblock = { param([string] $fileName) 
-   Nuget-PublishPackage -packagePath $_ -apiUrl $env:nuget_gallery_url -apiKey $env:nuget_api_key
-}
-
-$artifactScriptBlock = { param([string] $fileName) 
-#Push-AppveyorArtifact $fileName 
-}
+&$artifactScriptBlock($ourStyleCopSettingsFile)
+&$artifactScriptBlock($nuSpecTemplateFile)
 
 $initScripts = (ls "$TempBuildPackagesDir/*/*/*" -Filter 'init.ps1')
 foreach ($initScript in $initScripts) {
