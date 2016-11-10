@@ -1,14 +1,11 @@
-# PASTE THIS INTO APPVEYOUR
+# PASTE THIS INTO APPVEYOUR - Recipes
 
 ###########################################################
 ###       Setup variables from Appveyor                 ###
 ###########################################################
-$version = $env:appveyor_build_version
-$branchName = $env:appveyor_repo_branch
-$galleryUrl = $env:appveyor_account_nuget_url
-$galleryApiKey = $env:appveyor_account_nuget_key
-$artifactScriptBlock = { param([string] $fileName) Push-AppveyorArtifact $fileName }
 $repoPath = Resolve-Path .
+$branchName = $env:appveyor_repo_branch
+$buildVersion = $env:appveyor_build_version
 
 ###########################################################
 ###    Download and dot source tools to use             ###
@@ -24,16 +21,32 @@ $nugetFunctionsScriptPath = $(ls $TempBuildPackagesDir -Recurse | ?{$_.Name -eq 
 
 . $nugetFunctionsScriptPath
 
+#######################################################################
+###     Setup NuGet/Artifact scriptblocks                           ###
+#######################################################################
+$nugetScriptblock = { param([string] $fileName) 
+   Write-Host "Pushing $fileName to Build Artifacts"
+   Push-AppveyorArtifact $fileName
+   Write-Host "Pushing $fileName to NuGet Gallery"
+   Nuget-PublishPackage -packagePath $fileName -apiUrl $env:nuget_gallery_url -apiKey $env:nuget_api_key
+   Write-Host "Pushing $fileName to MyGet Gallery"
+   Nuget-PublishPackage -packagePath $fileName -apiUrl $env:myget_gallery_url -apiKey $env:myget_api_key
+}
 
-###########################################################
+$artifactScriptBlock = { param([string] $fileName) 
+   Write-Host "Pushing $fileName to Build Artifacts"
+   Push-AppveyorArtifact $fileName
+}
+
+#######################################################################
 ###       Run steps to process recipes repo             ###
-###########################################################
+#######################################################################
 
 # if we are in a branch then create a pre-release version for nuget
-$preReleaseSupportVersion = Nuget-CreatePreReleaseSupportedVersion -version $version -branchName $branchName
+$preReleaseSupportVersion = Nuget-CreatePreReleaseSupportedVersion -version $buildVersion -branchName $branchName
 
 # discover the distinct recipes
-$recipes = ls $repoPath | ?{ -not $_.Name.StartsWith('.') } | %{$_}
+$recipes = ls $repoPath | ?{ $_.PSIsContainer } | ?{ -not $_.Name.StartsWith('.') } | %{$_}
 
 # create the nuspec files in place
 $recipes | %{
@@ -50,16 +63,15 @@ ls . *.nuspec -Recurse | %{&$artifactScriptBlock($_.FullName)}
 $recipes | %{
 	$recipePath = $_.FullName
 	$nuspecFilePath = $(ls $recipePath -Filter '*.nuspec').FullName
-	$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $version -throwOnError $true -outputDirectory $recipePath
+	$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $buildVersion -throwOnError $true -outputDirectory $recipePath
 }
 
-# push the nupkgs as artifacts
-ls . *.nupkg -Recurse | %{&$artifactScriptBlock($_.FullName)}
-
-# push the nupkgs to gallery
+# push the nupkgs
 $recipes | %{
 	$recipePath = $_.FullName
 	$nuPkgFilePath = $(ls $recipePath -Filter '*.nupkg').FullName
 	Write-Output "Pushing package $nuPkgFilePath"
-	Nuget-PublishPackage -packagePath $nuPkgFilePath -apiUrl $galleryUrl -apiKey $galleryApiKey
+	&$nugetScriptblock($nuPkgFilePath)
 }
+
+Remove-Item $TempBuildPackagesDir -Recurse -Force
