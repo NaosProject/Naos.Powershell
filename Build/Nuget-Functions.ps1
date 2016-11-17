@@ -221,6 +221,20 @@ function Nuget-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 	$nuSpecFileXml.Save($nuSpecFilePath)	
 }
 
+function Nuget-OverrideNuSpecIntoNewFile([string] $templateFile, [string] $overrideFile, [string] $targetFile)
+{
+	$targetFile = Resolve-Path $targetFile
+	$initial = Nuget-GetMinimumNuSpec -id '$id$' -version '$version$' -authors '$authors$' -description '$description$' -isDevelopmentDependency $true
+	$initial | Out-File $targetFile
+
+	[xml] $targetNuspecXml = Get-Content $targetFile
+	[xml] $templateNuSpecFileXml = Get-Content $templateFile
+	[xml] $overrideNuSpecFileXml = Get-Content $overrideFile
+	Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $templateNuSpecFileXml -autoPackageId $null
+	Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $null
+	$targetNuspecXml.Save($targetFile)
+}
+
 function Nuget-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml, [string] $autoPackageId)
 {
 	$deepImport = $true
