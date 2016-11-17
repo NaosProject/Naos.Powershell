@@ -226,9 +226,10 @@ function Nuget-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 
 function Nuget-OverrideNuSpecIntoNewFile([string] $templateFile, [string] $overrideFile, [string] $targetFile)
 {
-	$targetFile = Resolve-Path $targetFile
 	$initial = Nuget-GetMinimumNuSpec -id '$id$' -version '$version$' -authors '$authors$' -description '$description$' -isDevelopmentDependency $false
 	$initial | Out-File $targetFile
+
+	$targetFile = Resolve-Path $targetFile
 
 	[xml] $targetNuspecXml = Get-Content $targetFile
 	[xml] $templateNuSpecFileXml = Get-Content $templateFile
