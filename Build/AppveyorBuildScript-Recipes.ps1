@@ -62,14 +62,14 @@ ls . *.nuspec -Recurse | %{&$artifactScriptBlock($_.FullName)}
 # create the nupkgs in place
 $recipes | %{
 	$recipePath = $_.FullName
-	$nuspecFilePath = $(ls $recipePath -Filter '*.nuspec').FullName
+	$nuspecFilePath = $(ls $recipePath -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)").FullName
 	$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $buildVersion -throwOnError $true -outputDirectory $recipePath
 }
 
 # push the nupkgs
 $recipes | %{
 	$recipePath = $_.FullName
-	$nuPkgFilePath = $(ls $recipePath -Filter '*.nupkg').FullName
+	$nuPkgFilePath = $(ls $recipePath -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.Package)").FullName
 	Write-Output "Pushing package $nuPkgFilePath"
 	&$nugetScriptblock($nuPkgFilePath)
 }

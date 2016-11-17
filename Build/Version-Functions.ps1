@@ -57,13 +57,18 @@ function Version-UpdateAssemblyInfos([System.Array] $asmInfos, [string] $version
 
 function Version-GetVersionFromProject ([string] $projFilePath)
 {
-	$asmInfoPath = Join-Path (Join-Path (Split-Path $projFilePath) 'Properties') 'AssemblyInfo.cs'
-	if (-not (Test-Path $asmInfoPath))
+	$assemblyInfoFilePath = Join-Path (Join-Path (Split-Path $projFilePath) 'Properties') 'AssemblyInfo.cs'
+	if (-not (Test-Path $assemblyInfoFilePath))
 	{
-		$asmInfoPath = Join-Path (Split-Path $projFilePath) 'AssemblyInfo.cpp'
+		$assemblyInfoFilePath = Join-Path (Split-Path $projFilePath) 'AssemblyInfo.cpp'
 	}
 	
-	$asmInfoContents = Get-Content $asmInfoPath
+	return Version-GetVersionFromAssemblyInfo -assemblyInfoFilePath $assemblyInfoFilePath
+}
+	
+function Version-GetVersionFromAssemblyInfo ([string] $assemblyInfoFilePath)
+{
+	$asmInfoContents = Get-Content $assemblyInfoFilePath
 
 	$asmInfoMatches = $asmInfoContents -match '^[assembly: AssemblyVersion\("[0-9]+(\.([0-9]+|\*)){1,3}"\)'
 	$asmInfoFileMatches = $asmInfoContents -match '^[assembly: AssemblyFileVersion\("[0-9]+(\.([0-9]+|\*)){1,3}"\)'

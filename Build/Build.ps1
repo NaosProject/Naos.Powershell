@@ -327,6 +327,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		$projFilePath = Resolve-Path $_
 		$projFileItem = Get-Item $projFilePath
 		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
+		$recipeNuspecs = ls $projFilePath -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" | %{$_.FullName}
 		$isNonTestLibrary = ((MsBuild-IsLibrary -projectFilePath $projFilePath) -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj'))))
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
 		$isConsoleApp = MsBuild-IsConsoleApp -projectFilePath $projFilePath
@@ -398,34 +399,52 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 				}
 			}
 
-			# we'll delete one if it's created at end...
-			$nuspecFileCreated = $false
+			# we'll delete at end...
+			$nuspecFilesCreated = New-Object System.Collections.Generic.List``1[System.String]
 			if (-not (Test-Path $nuspecFilePath))
 			{
 				Write-Output "Creating a NuSpec file from Project"
-				$nuspecFileCreated = $true
-				
-				# Create a NuSpec file from project if there isn't a custom one present
 				NuGet-CreateNuSpecFileFromProject -projFilePath $projFilePath -projectReferences $projectReferences -filesToPackageFolderMap $outputFilesPackageFolderMap -maintainSubpathFrom $maintainSubpathFrom -authors $Authors -nuSpecTemplateFilePath $NuSpecTemplateFilePath
+
+				$nuspecFilesCreated.Add($nuspecFilePath)
 			}
 			else
 			{
-				# TODO: Support partial NuSpec here by adding missing nodes of output files AND/OR dependencies...
 				Write-Output "Using existing NuSpec file: $NuSpecFilePath"
 			}
 
 			$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
 			$createdPackagePaths.Add($packageFile)
 			
+			$recipeNuspecs | %{
+				$overrideNuspec = $_
+				$recipeNuspec = $_.Replace(".$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)", ".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)")
+				$nuspecFilesCreated.Add($recipeNuspec)
+
+				$contents = Nuget-GetMinimumNuSpec -id '$package$' -version $version -authors '$authors$' -description '$description$' -isDevelopmentDependency $true
+				$contents | Out-File $recipeNuspec -Force
+
+				[xml] $recipeNuspecXml = Get-Content $recipeNuspec
+				[xml] $templateNuSpecFileXml = Get-Content $NuSpecTemplateFilePath
+				[xml] $overrideNuSpecFileXml = Get-Content $overrideNuspec
+				Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $templateNuSpecFileXml -autoPackageId $null
+				Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $null
+				$recipeNuspecXml.Save($recipeNuspec)
+				
+				$recipePackageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $recipeNuspec -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
+				$createdPackagePaths.Add($recipePackageFile)
+			}
+			
 			if ($SaveFileAsBuildArtifact -ne $null)
 			{
+				$nuspecFilesCreated | ?{$_ -ne $nuspecFilePath} | %{&$SaveFileAsBuildArtifact($_)}
 				&$SaveFileAsBuildArtifact($nuspecFilePath)
 			}
 			
-			if ($nuspecFileCreated)
-			{
-				# Remove temporary nuspec file if it was generated from project
-				rm $nuspecFilePath
+			$nuspecFilesCreated | %{
+				# Remove temporary nuspec(s) file if it was generated from project
+				Write-Output "Removing temporary NuSpec file $_"
+				rm $_
 			}
 		}
 		else

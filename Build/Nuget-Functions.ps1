@@ -1,4 +1,12 @@
 $nuGetConstants = @{
+	FileExtensionsWithoutDot = @{
+		Package = 'nupkg';
+		Nuspec = 'nuspec';
+		OverrideNuspec = 'override-nuspec';
+		TemplateNuspec = 'template-nuspec';
+		RecipeNuspec = 'recipe-nuspec';
+	}
+	
     UpdateStrategy = @{
 		None = 'None';
         UpdateSafe = 'UpdateSafe';
@@ -20,7 +28,7 @@ $nuGetConstants = @{
 	$scriptsPath = Split-Path ((Get-Variable MyInvocation -Scope 0).Value).MyCommand.Path
     $NuGetExeFilePath = "NuGet" #(Resolve-Path (Join-Path $scriptsPath "NuGet.exe"))
 	 
-function NuGet-InstallMissingPackages([System.Array] $pkgFiles, [string] $outputDir, [bool] $throwOnError = $true)
+function Nuget-InstallMissingPackages([System.Array] $pkgFiles, [string] $outputDir, [bool] $throwOnError = $true)
 {
 	# Make output dir if missing
 	if (-not (Test-Path $outputDir)) { md $outputDir | Out-Null }
@@ -36,7 +44,7 @@ function NuGet-InstallMissingPackages([System.Array] $pkgFiles, [string] $output
 	}
 }
 
-function NuGet-UpdatePackages([System.Array] $pkgFiles, [bool] $throwOnError = $true)
+function Nuget-UpdatePackages([System.Array] $pkgFiles, [bool] $throwOnError = $true)
 {
 	Write-Host '   NuGet update All package.config Files in tree.'
 	$pkgFiles | %{
@@ -49,7 +57,7 @@ function NuGet-UpdatePackages([System.Array] $pkgFiles, [bool] $throwOnError = $
 	}
 }
 
-function NuGet-UpdatePackagesInSolution([string] $solutionFile, [string] $updateStrategy, [string] $source, [bool] $throwOnError = $true)
+function Nuget-UpdatePackagesInSolution([string] $solutionFile, [string] $updateStrategy, [string] $source, [bool] $throwOnError = $true)
 {
 	Write-Output "   NuGet Update Solution File: $solutionFile"
 	if ($updateStrategy -eq $nuGetConstants.UpdateStrategy.UpdateSafe)
@@ -74,7 +82,7 @@ function NuGet-UpdatePackagesInSolution([string] $solutionFile, [string] $update
 	if(($lastExitCode -ne 0) -and ($throwOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to run NuGetCommand update on $solutionFile" }
 }
 
-function NuGet-GetLocalGalleryIdVersionDictionary([String] $source)
+function Nuget-GetLocalGalleryIdVersionDictionary([String] $source)
 {
 	$packageIdVersionDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
 
@@ -92,15 +100,33 @@ function NuGet-GetLocalGalleryIdVersionDictionary([String] $source)
 	return $packageIdVersionDictionary
 }
 
-function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $authors, [string] $nuSpecTemplateFilePath = $null)
+function Nuget-GetMinimumNuSpec([string]$id, [string] $version, [string] $authors, [string] $description, [bool] $isDevelopmentDependency)
+{
+	$contents = ''
+	$contents += "<?xml version=`"1.0`"?>" + [Environment]::NewLine
+	$contents += "<package>" + [Environment]::NewLine
+	$contents += "    <metadata>" + [Environment]::NewLine
+	$contents += "        <id>$id</id>" + [Environment]::NewLine
+	$contents += "        <version>$version</version>" + [Environment]::NewLine
+	$contents += "        <authors>$authors</authors>" + [Environment]::NewLine
+	$contents += "        <description>$description</description>" + [Environment]::NewLine
+	$contents += "        <developmentDependency>$($isDevelopmentDependency.ToString().ToLower())</developmentDependency>" + [Environment]::NewLine
+	$contents += "    </metadata>" + [Environment]::NewLine
+	$contents += "</package>"
+	return $contents
+}
+
+function Nuget-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $authors, [string] $nuSpecTemplateFilePath = $null)
 {
 	$recipeFolderPath = Resolve-Path $recipeFolderPath
 
 	$folderName = Split-Path $recipeFolderPath -Leaf
-	$nuSpecFilePath = Join-Path $recipeFolderPath "$folderName.nuspec"
+	$nuSpecFilePath = Join-Path $recipeFolderPath "$folderName.$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)"
 	$installScriptPath = Join-Path $recipeFolderPath "InstallNeededToMarkConfigCopyToOutput.ps1"
 
-	$installScript = '' # got this idea from: http://stackoverflow.com/questions/21143817/set-content-files-to-copy-local-always-in-a-nuget-package
+	# got this idea from: http://stackoverflow.com/questions/21143817/set-content-files-to-copy-local-always-in-a-nuget-package
+	#     not necessary right now but keeping here as reference...
+	$installScript = '' 
 	$installScript += 'param($installPath, $toolsPath, $package, $project)' + [Environment]::NewLine
 	$installScript += '#$configItem = $project.ProjectItems.Item("NLog.config")' + [Environment]::NewLine
 	$installScript += "# set 'Copy To Output Directory' to ?'0:Never, 1:Always, 2:IfNewer'" + [Environment]::NewLine
@@ -108,19 +134,7 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 	$installScript += "# set 'Build Action' to ?'0:None, 1:Compile, 2:Content, 3:EmbeddedResource'" + [Environment]::NewLine
 	$installScript += '#$configItem.Properties.Item("BuildAction").Value = 2' + [Environment]::NewLine
 	
-	# ensure bare minimum is there
-	$contents = ''
-	$contents += "<?xml version=`"1.0`"?>" + [Environment]::NewLine
-	$contents += "<package>" + [Environment]::NewLine
-	$contents += "    <metadata>" + [Environment]::NewLine
-	$contents += "        <id>$folderName</id>" + [Environment]::NewLine
-	$contents += '        <version>$version$</version>' + [Environment]::NewLine
-	$contents += "        <authors>$authors</authors>" + [Environment]::NewLine
-	$contents += "        <description>$folderName</description>" + [Environment]::NewLine
-	$contents += "        <developmentDependency>true</developmentDependency>" + [Environment]::NewLine
-	$contents += "    </metadata>" + [Environment]::NewLine
-	$contents += "</package>"
-	
+	$contents = Nuget-GetMinimumNuSpec -id $folderName -version '$version$' -authors $authors -description $description -isDevelopmentDependency $true
 	$contents | Out-File $nuSpecFilePath -Force
 
 	[xml] $nuSpecFileXml = Get-Content $nuSpecFilePath
@@ -129,11 +143,11 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 	if ($(-not [string]::IsNullOrEmpty($nuSpecTemplateFilePath)) -and $(Test-Path $nuSpecTemplateFilePath))
 	{
 		[xml] $nuSpecTemplateFileXml = Get-Content $nuSpecTemplateFilePath
-		NuGet-OverrideNuSpec -nuSpecFileXml $nuSpecFileXml -overrideNuSpecFileXml $nuSpecTemplateFileXml -autoPackageId $folderName
+		Nuget-OverrideNuSpec -nuSpecFileXml $nuSpecFileXml -overrideNuSpecFileXml $nuSpecTemplateFileXml -autoPackageId $folderName
 	}
 
 	# apply override if any
-	$overrideNuSpecFilePaths = ls $recipeFolderPath -Filter *.override-nuspec
+	$overrideNuSpecFilePaths = ls $recipeFolderPath -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.OverrideNuspec)"
 	if ($overrideNuSpecFilePaths.PSIsContainer)
 	{
 		throw 'Found multiple override files, only one is supported: ' + [string]::Join(',', $overrideNuSpecFilePaths)
@@ -144,13 +158,13 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 	if ($(-not [string]::IsNullOrEmpty($overrideNuSpecFilePath))  -and $(Test-Path $overrideNuSpecFilePath))
 	{
 		[xml] $overrideNuSpecFileXml = Get-Content $overrideNuSpecFilePath
-		NuGet-OverrideNuSpec -nuSpecFileXml $nuSpecFileXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $folderName
+		Nuget-OverrideNuSpec -nuSpecFileXml $nuSpecFileXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $folderName
 	}
 
 	# add files...
 	$filesNode = $nuSpecFileXml.CreateElement('files')
 	
-	$files = ls $recipeFolderPath -Recurse | ?{-not $_.PSIsContainer} | ?{-not $_.FullName.EndsWith('.nuspec')} | ?{-not $_.FullName.EndsWith('.override-nuspec')} | ?{-not $_.FullName.EndsWith('.nupkg')}
+	$files = ls $recipeFolderPath -Recurse | ?{-not $_.PSIsContainer} | ?{-not $_.FullName.EndsWith(".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)")} | ?{-not $_.FullName.EndsWith(".$($nuGetConstants.FileExtensionsWithoutDot.OverrideNuspec)")} | ?{-not $_.FullName.EndsWith(".$($nuGetConstants.FileExtensionsWithoutDot.Package)")}
 
 	$needsInstall = $false
 	$files | %{
@@ -207,14 +221,14 @@ function NuGet-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 	$nuSpecFileXml.Save($nuSpecFilePath)	
 }
 
-function NuGet-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml, [string] $autoPackageId)
+function Nuget-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml, [string] $autoPackageId)
 {
 	$deepImport = $true
 	
 	$overrideNuSpecFileXml.package.ChildNodes | %{
 		$node = $_
 		$name = $node.Name
-		if ($name -ne 'metadata' -and $name -ne 'files')
+		if ($name -ne 'metadata')
 		{
 			$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
 			[void]$nuSpecFileXml.package.AppendChild($importedNode)
@@ -231,13 +245,17 @@ function NuGet-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml
 		}
 		else
 		{
-			$importedNode.InnerXml = $importedNode.InnerXml.Replace('$autoPackageId$', $autoPackageId)
+			if (-not [String]::IsNullOrEmpty($autoPackageId))
+			{
+				$importedNode.InnerXml = $importedNode.InnerXml.Replace('$autoPackageId$', $autoPackageId)
+			}
+			
 			[void]$nuSpecFileXml.package.metadata.AppendChild($importedNode)
 		}
 	}
 }
 
-function NuGet-CreateNuSpecExternalWrapper([string] $externalId, [string] $version, [string] $outputFile, [string] $packagePrefix = 'ExternallyWrapped')
+function Nuget-CreateNuSpecExternalWrapper([string] $externalId, [string] $version, [string] $outputFile, [string] $packagePrefix = 'ExternallyWrapped')
 {
 	$contents = "<?xml version=`"1.0`" encoding=`"utf-16`"?>" + [Environment]::NewLine
 	$contents += "<package>" + [Environment]::NewLine
@@ -257,7 +275,7 @@ function NuGet-CreateNuSpecExternalWrapper([string] $externalId, [string] $versi
 	$contents | Out-File $outputFile
 }
 
-function NuGet-UpdateVersionOnNuSpecExternalWrapper([string] $version, [string] $nuspecFile)
+function Nuget-UpdateVersionOnNuSpecExternalWrapper([string] $version, [string] $nuspecFile)
 {
 	[xml] $xml = Get-Content $nuspecFile
 	$versionNode = $xml.SelectSingleNode('package/metadata/version')
@@ -267,21 +285,15 @@ function NuGet-UpdateVersionOnNuSpecExternalWrapper([string] $version, [string] 
 	$xml.Save($nuspecFile)
 }
 
-function NuGet-GetNuSpecFilePath([string] $projFilePath)
+function Nuget-GetNuSpecFilePath([string] $projFilePath)
 {
-	$nuspecFilePath = $projFilePath.ToString().Replace('.csproj', '.nuspec').Replace('.vcxproj', '.nuspec').Replace('.vbproj', '.nuspec')
+	$nuspecFilePath = $projFilePath.ToString().Replace('.csproj', ".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)").Replace('.vcxproj', ".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)").Replace('.vbproj', ".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)")
 	return $nuspecFilePath
 }
 
-function NuGet-GetNuSpecDeploymentFilePath([string] $projFilePath)
+function Nuget-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array] $projectReferences, [System.Collections.HashTable] $filesToPackageFolderMap, [string] $authors, [bool] $throwOnError = $true, [string] $maintainSubpathFrom = $null, [string] $nuSpecTemplateFilePath = $null)
 {
-	$nuspecFilePath = $projFilePath.ToString().Replace('.csproj', '-Deployment.nuspec').Replace('.vcxproj', '-Deployment.nuspec').Replace('.vbproj', '-Deployment.nuspec')
-	return $nuspecFilePath
-}
-
-function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array] $projectReferences, [System.Collections.HashTable] $filesToPackageFolderMap, [string] $authors, [bool] $throwOnError = $true, [string] $maintainSubpathFrom = $null, [string] $nuSpecTemplateFilePath = $null)
-{
-	$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
+	$nuspecFilePath = Nuget-GetNuSpecFilePath -projFilePath $projFilePath
 
 	$projDir =  Split-Path $projFilePath
 	pushd $projDir
@@ -391,14 +403,14 @@ function NuGet-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 	if ($(-not [string]::IsNullOrEmpty($nuSpecTemplateFilePath)) -and $(Test-Path $nuSpecTemplateFilePath))
 	{
 		[xml] $nuSpecTemplateFileXml = Get-Content $nuSpecTemplateFilePath
-		NuGet-OverrideNuSpec -nuSpecFileXml $nuspec -overrideNuSpecFileXml $nuSpecTemplateFileXml -autoPackageId $fileName
+		Nuget-OverrideNuSpec -nuSpecFileXml $nuspec -overrideNuSpecFileXml $nuSpecTemplateFileXml -autoPackageId $fileName
 	}
 	
-	$overrideNuSpecFilePath = $nuspecFilePath.Replace('.nuspec', '.override-nuspec')
+	$overrideNuSpecFilePath = $nuspecFilePath.Replace(".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)", ".$($nuGetConstants.FileExtensionsWithoutDot.OverrideNuspec)")
 	if ($(-not [string]::IsNullOrEmpty($overrideNuSpecFilePath))  -and $(Test-Path $overrideNuSpecFilePath))
 	{
 		[xml] $overrideNuSpecFileXml = Get-Content $overrideNuSpecFilePath
-		NuGet-OverrideNuSpec -nuSpecFileXml $nuspec -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $fileName
+		Nuget-OverrideNuSpec -nuSpecFileXml $nuspec -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $fileName
 	}
 
 	
@@ -440,7 +452,7 @@ function Nuget-MovePackageToGallery([string] $projectFilePath, [string] $pathOfN
 	$subDir = Join-Path $packageTargetDir $name
 	if (-not (Test-Path $subDir)) { md $subDir }
 	
-	ls $pathOfNewPackages -Filter *.nupkg | 
+	ls $pathOfNewPackages -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.Package)" | 
 	%{
 		$sourceFileName = $_.FullName
 		$targetFileName = Join-Path $subDir ($_.Name)
@@ -454,7 +466,7 @@ function Nuget-MovePackageToGallery([string] $projectFilePath, [string] $pathOfN
 
 function Nuget-PublishAllPackages([string] $pathOfNewPackages, [string] $apiUrl, [string] $apiKey, [bool] $throwOnError = $true)
 {
-	ls $pathOfNewPackages -Filter *.nupkg | 
+	ls $pathOfNewPackages -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.Package)" | 
 	%{
 		$pkgFile = $_.FullName
 		Nuget-PublishPackage -packagePath $pkgFile -apiUrl $apiUrl -apiKey $apiKey -throwOnError $throwOnError
@@ -497,4 +509,165 @@ function Nuget-ConstrainVersionToCurrent([string] $packageFilePath)
 	
 	$resolvedPath = Resolve-Path $packageFilePath
 	$pkgFile.Save($resolvedPath)
+}
+
+function Nuget-CreateRecipeFromRepository([string] $packageId, [string] $templateNuspec, [string] $workingDir, [string] $repositoryZipUrl, [string] $sourceSubPath, [Array] $scrubList)
+{
+	$fullSourcePath = Join-Path $workingDir $sourceSubPath
+	$overrideNuspec = "$packageId.$($nuGetConstants.FileExtensionsWithoutDot.OverrideNuSpec)"
+	$recipeFileName = "$packageId.cs"
+	$recipeFilePath = Join-Path $workingDir $recipeFileName
+	$zipFilePath = Join-Path $workingDir "$packageId.zip"
+
+	$header = ''
+	$header += '// --------------------------------------------------------------------------------------------------------------------' + [Environment]::NewLine
+	$header += "// <copyright file=`"$recipeFileName`" company=`"Naos`">" + [Environment]::NewLine
+	$header += '//   Copyright 2016 Naos' + [Environment]::NewLine
+	$header += '// </copyright>' + [Environment]::NewLine
+	$header += '// <auto-generated>' + [Environment]::NewLine
+	$header += '//   Sourced from NuGet package (taken from: ' + $repositoryZipUrl + ').'
+	$header += '//   Will be overwritten with package update except in ' + $packageId + ' source.' + [Environment]::NewLine
+	$header += '// </auto-generated>' + [Environment]::NewLine
+	$header += '// --------------------------------------------------------------------------------------------------------------------' + [Environment]::NewLine
+	$header += '' + [Environment]::NewLine
+	$header += '#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member' + [Environment]::NewLine
+	$header += '#pragma warning disable CS1570 // XML comment has badly formed XML' + [Environment]::NewLine
+	$header += '#pragma warning disable CS1587 // XML comment is not placed on a valid language element' + [Environment]::NewLine
+	$header += '' + [Environment]::NewLine
+	
+	$typeAddIn = ''
+	$typeAddIn += '[System.Diagnostics.DebuggerStepThrough]' + [Environment]::NewLine
+	$typeAddIn += '[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]' + [Environment]::NewLine
+	$typeAddIn += '[System.CodeDom.Compiler.GeneratedCode("' + $packageId + '", "See package version number")]'
+
+	Invoke-RestMethod -Uri $repositoryZipUrl -OutFile $zipFilePath
+	[System.Reflection.Assembly]::LoadWithPartialName('System.IO.Compression.FileSystem') | Out-Null 
+	[System.IO.Compression.ZipFile]::ExtractToDirectory($zipFilePath, $workingDir) 
+
+	$csFiles = ls $fullSourcePath -Filter *.cs | %{$_.FullName}
+
+	# usings must be at the top
+	$typesAddedIn = New-Object 'System.Collections.Generic.List[String]'
+	$usingsCollector = New-Object 'System.Collections.Generic.List[String]'
+	$recipeFileCollector = New-Object 'System.Collections.Generic.List[String]'
+	$csFiles | %{
+		$file = $_
+		$contents = [System.IO.File]::ReadLines($file)
+		$contents | %{
+			if ($_.Trim().StartsWith('using', [System.StringComparison]::InvariantCultureIgnoreCase))
+			{
+				if (-not $usingsCollector.Contains($_.Trim()))
+				{
+					$usingsCollector.Add($_.Trim())
+				}
+			}
+			else
+			{
+				$recipeFileCollector.Add($_)
+			}
+		}
+	}
+
+	# Start writing file
+	$header | %{
+		$_ | Out-File $recipeFilePath -Append
+	}
+
+	$usingsCollector | %{
+		$_ | Out-File $recipeFilePath -Append
+	}
+		
+	$recipeFileCollector | %{
+		if ($_.Trim().StartsWith('class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('sealed class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public sealed class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private sealed class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('abstract class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public abstract class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private abstract class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal abstract class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('static class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public static class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private static class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal static class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('abstract partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public abstract partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private abstract partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal abstract partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('static partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public static partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private static partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal static partial class', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('abstract struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public abstract struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private abstract struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal abstract struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('static struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public static struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private static struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal static struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('abstract partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public abstract partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private abstract partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal abstract partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('static partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('public static partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('private static partial struct', [System.StringComparison]::InvariantCultureIgnoreCase) -or 
+			$_.Trim().StartsWith('internal static partial struct', [System.StringComparison]::InvariantCultureIgnoreCase))
+		{
+		#public static partial class ValidatorExtensions
+			#check if partial and not already added...
+			if (-not $typesAddedIn.Contains($_))
+			{
+				$typeAddIn | Out-File $recipeFilePath -Append
+				$typesAddedIn.Add($_)
+			}
+		}
+
+		$scrubbed = $_
+		$scrubList | %{
+			$scrubbed = $scrubbed.Replace($_, '')
+		}
+		
+		$scrubbed | Out-File $recipeFilePath -Append
+	}
+
+	$assemblyInfoFilePath = Join-Path $fullSourcePath 'Properties\AssemblyInfo.cs'
+	$version = Version-GetVersionFromAssemblyInfo -assemblyInfoFilePath $assemblyInfoFilePath
+
+	$recipeNuspec = Join-Path $workingDir "$packageId.$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)"
+	$contents = Nuget-GetMinimumNuSpec -id $packageId -version $version -authors '$authors$' -description '$description$' -isDevelopmentDependency $true
+	$contents | Out-File $recipeNuspec -Force
+
+	[xml] $recipeNuspecXml = Get-Content $recipeNuspec
+	[xml] $templateNuSpecFileXml = Get-Content $templateNuspec
+	[xml] $overrideNuSpecFileXml = Get-Content $overrideNuspec
+	Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $templateNuSpecFileXml -autoPackageId $packageId
+	Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $packageId
+
+	$filesNode = $recipeNuspecXml.CreateElement('files')
+	$fileNode = $recipeNuspecXml.CreateElement('file')
+	$fileNode.SetAttribute('src', $recipeFilePath)
+	$fileNode.SetAttribute('target', "content/45/.Naos.Recipes/$recipeFileName")
+	[void]$filesNode.AppendChild($fileNode)
+	[void]$recipeNuspecXml.package.AppendChild($filesNode)
+
+	$recipeNuspecXml.Save($recipeNuspec)
+
+	Nuget-CreatePackageFromNuspec -nuspecFilePath $recipeNuspec -version $version -outputDirectory $workingDir
 }
