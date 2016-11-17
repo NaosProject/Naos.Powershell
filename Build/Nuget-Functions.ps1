@@ -110,7 +110,10 @@ function Nuget-GetMinimumNuSpec([string]$id, [string] $version, [string] $author
 	$contents += "        <version>$version</version>" + [Environment]::NewLine
 	$contents += "        <authors>$authors</authors>" + [Environment]::NewLine
 	$contents += "        <description>$description</description>" + [Environment]::NewLine
-	$contents += "        <developmentDependency>$($isDevelopmentDependency.ToString().ToLower())</developmentDependency>" + [Environment]::NewLine
+	if (-not $isDevelopmentDependency)
+	{
+		$contents += "        <developmentDependency>$($isDevelopmentDependency.ToString().ToLower())</developmentDependency>" + [Environment]::NewLine
+	}
 	$contents += "    </metadata>" + [Environment]::NewLine
 	$contents += "</package>"
 	return $contents
@@ -224,7 +227,7 @@ function Nuget-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 function Nuget-OverrideNuSpecIntoNewFile([string] $templateFile, [string] $overrideFile, [string] $targetFile)
 {
 	$targetFile = Resolve-Path $targetFile
-	$initial = Nuget-GetMinimumNuSpec -id '$id$' -version '$version$' -authors '$authors$' -description '$description$' -isDevelopmentDependency $true
+	$initial = Nuget-GetMinimumNuSpec -id '$id$' -version '$version$' -authors '$authors$' -description '$description$' -isDevelopmentDependency $false
 	$initial | Out-File $targetFile
 
 	[xml] $targetNuspecXml = Get-Content $targetFile
