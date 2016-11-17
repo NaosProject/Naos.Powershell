@@ -327,7 +327,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		$projFilePath = Resolve-Path $_
 		$projFileItem = Get-Item $projFilePath
 		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
-		$recipeNuspecs = ls $projFilePath -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" | %{$_.FullName}
+		$recipeNuspecs = ls (Split-Path $projFilePath) -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" | %{$_.FullName}
 		$isNonTestLibrary = ((MsBuild-IsLibrary -projectFilePath $projFilePath) -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj'))))
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
 		$isConsoleApp = MsBuild-IsConsoleApp -projectFilePath $projFilePath
