@@ -229,6 +229,8 @@ function Nuget-OverrideNuSpecIntoNewFile([string] $templateFile, [string] $overr
 	$initial = Nuget-GetMinimumNuSpec -id '$id$' -version '$version$' -authors '$authors$' -description '$description$' -isDevelopmentDependency $false
 	$initial | Out-File $targetFile
 
+	$templateFile = Resolve-Path $templateFile
+	$overrideFile = Resolve-Path $overrideFile
 	$targetFile = Resolve-Path $targetFile
 
 	[xml] $targetNuspecXml = Get-Content $targetFile
