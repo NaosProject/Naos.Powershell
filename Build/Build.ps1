@@ -440,12 +440,6 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 				$nuspecFilesCreated | ?{$_ -ne $nuspecFilePath} | %{&$SaveFileAsBuildArtifact($_)}
 				&$SaveFileAsBuildArtifact($nuspecFilePath)
 			}
-			
-			$nuspecFilesCreated | %{
-				# Remove temporary nuspec(s) file if it was generated from project
-				Write-Output "Removing temporary NuSpec file $_"
-				rm $_
-			}
 		}
 		else
 		{
