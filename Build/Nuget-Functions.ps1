@@ -236,8 +236,8 @@ function Nuget-OverrideNuSpecIntoNewFile([string] $templateFile, [string] $overr
 	[xml] $targetNuspecXml = Get-Content $targetFile
 	[xml] $templateNuSpecFileXml = Get-Content $templateFile
 	[xml] $overrideNuSpecFileXml = Get-Content $overrideFile
-	Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $templateNuSpecFileXml -autoPackageId $null
-	Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $null
+	Nuget-OverrideNuSpec -nuSpecFileXml $targetNuspecXml -overrideNuSpecFileXml $templateNuSpecFileXml -autoPackageId $null
+	Nuget-OverrideNuSpec -nuSpecFileXml $targetNuspecXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $null
 	$targetNuspecXml.Save($targetFile)
 }
 
