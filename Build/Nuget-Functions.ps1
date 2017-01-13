@@ -460,7 +460,23 @@ function Nuget-CreatePackageFromNuspec([string] $nuspecFilePath, [string] $versi
 	Write-Host -Fore Cyan "   <END   Pack"
 	Write-Host -Fore Cyan ""
 	if(($lastExitCode -ne 0) -and ($throwOnError)) { throw "Exitcode was expected 0 but was $lastExitCode - failed to run NuGetCommand pack on $nuspecFilePath" }
-	return (Resolve-Path $packagePath)
+
+	$resolvedPackagePath = ''
+	try
+	{
+		$resolvedPackagePath = (Resolve-Path $packagePath)
+	}
+	catch
+	{
+		throw "Failed to create package from $nuspecFilePath; check for warnings or errors."
+	}
+	
+	if (-not (Test-Path $resolvedPackagePath))
+	{
+		throw "Failed to create package file $resolvedPackagePath from $nuspecFilePath; check for warnings or errors."
+	}
+
+	return $resolvedPackagePath
 }
 
 function Nuget-MovePackageToGallery([string] $projectFilePath, [string] $pathOfNewPackages, [string] $galleryPath)
