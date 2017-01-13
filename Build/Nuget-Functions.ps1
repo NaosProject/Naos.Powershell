@@ -464,7 +464,7 @@ function Nuget-CreatePackageFromNuspec([string] $nuspecFilePath, [string] $versi
 	$resolvedPackagePath = ''
 	try
 	{
-		$resolvedPackagePath = (Resolve-Path $packagePath)
+		$resolvedPackagePath = (Resolve-Path $packagePath -ErrorAction Stop)
 	}
 	catch
 	{
