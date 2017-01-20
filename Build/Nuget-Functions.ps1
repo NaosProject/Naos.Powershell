@@ -119,7 +119,7 @@ function Nuget-GetMinimumNuSpec([string]$id, [string] $version, [string] $author
 	return $contents
 }
 
-function Nuget-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $authors, [string] $nuSpecTemplateFilePath = $null)
+function Nuget-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $authors, [string] $description = $null, [string] $nuSpecTemplateFilePath = $null)
 {
 	$recipeFolderPath = Resolve-Path $recipeFolderPath
 
@@ -136,6 +136,11 @@ function Nuget-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 	$installScript += '#$configItem.Properties.Item("CopyToOutputDirectory").Value = 2' + [Environment]::NewLine
 	$installScript += "# set 'Build Action' to ?'0:None, 1:Compile, 2:Content, 3:EmbeddedResource'" + [Environment]::NewLine
 	$installScript += '#$configItem.Properties.Item("BuildAction").Value = 2' + [Environment]::NewLine
+	
+	if ($description -eq $null)
+	{
+		$description = $folderName
+	}
 	
 	$contents = Nuget-GetMinimumNuSpec -id $folderName -version '$version$' -authors $authors -description $description -isDevelopmentDependency $true
 	$contents | Out-File $nuSpecFilePath -Force
