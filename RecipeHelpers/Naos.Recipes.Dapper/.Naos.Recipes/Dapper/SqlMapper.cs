@@ -37,7 +37,7 @@ namespace Dapper
     /// </summary>
     [Flags]
     [System.CodeDom.Compiler.GeneratedCode("Naos.Dapper", "See package version number")]
-    public enum CommandFlags
+    internal enum CommandFlags
     {
         /// <summary>
         /// No additional flags
@@ -63,7 +63,7 @@ namespace Dapper
     [System.Diagnostics.DebuggerStepThrough]
     [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     [System.CodeDom.Compiler.GeneratedCode("Naos.Dapper", "See package version number")]
-    public struct CommandDefinition
+    internal struct CommandDefinition
     {
         internal static CommandDefinition ForCallback(object parameters)
         {
@@ -5426,7 +5426,7 @@ namespace Dapper
     /// exposing the downstream command/reader as properties.
     /// </summary>
     [System.CodeDom.Compiler.GeneratedCode("Naos.Dapper", "See package version number")]
-    public interface IWrappedDataReader : IDataReader
+    internal interface IWrappedDataReader : IDataReader
     {
         /// <summary>
         /// Obtain the underlying reader
@@ -5445,7 +5445,7 @@ namespace Dapper
     [System.Diagnostics.DebuggerStepThrough]
     [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     [System.CodeDom.Compiler.GeneratedCode("Naos.Dapper", "See package version number")]
-    public sealed class ExplicitConstructorAttribute : Attribute
+    internal sealed class ExplicitConstructorAttribute : Attribute
     {
     }
 

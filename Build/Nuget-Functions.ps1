@@ -455,12 +455,24 @@ function Nuget-CreatePackageFromNuspec([string] $nuspecFilePath, [string] $versi
 	
 	Write-Host $output
 
-	#getting path of the newly created NuGet package
-	$output = [String]::Join('', $output)
-	$sl = ,"created package '"
-	$stillSplitRight = $output.split($sl, 'RemoveEmptyEntries')
-	$sr = ,"'."
-	$packagePath = $stillSplitRight[1].Split($sr, 'RemoveEmptyEntries')
+	$rootDir = Split-Path $nuspecFilePath
+	if (($outputDirectory -ne $null) -and (Test-Path $outputDirectory))
+	{
+		$rootDir = $outputDirectory
+	}
+
+	$nuSpecFileName = Split-Path $nuspecFilePath -Leaf
+	[xml] $xml = Get-Content $nuSpecFilePath
+	$packageId = $xml.Package.Metadata.Id
+	$packageFileVersion = $version
+	$versionDotSplit = $packageFileVersion.Split('.')
+	if (($versionDotSplit.Length -eq 4) -and ($versionDotSplit[3] -eq '0'))
+	{
+		# trim trailing zero because nuget will exclude it from file name...
+		$packageFileVersion = $packageFileVersion.Substring(0, $packageFileVersion.Length - 2)
+	}
+	$nupkgFileName = "$packageId.$packageFileVersion.nupkg"
+	$packagePath = Join-Path $rootDir $nupkgFileName
 	
 	Write-Host -Fore Cyan "   <END   Pack"
 	Write-Host -Fore Cyan ""
@@ -473,7 +485,7 @@ function Nuget-CreatePackageFromNuspec([string] $nuspecFilePath, [string] $versi
 	}
 	catch
 	{
-		throw "Failed to create package from $nuspecFilePath; check for warnings or errors."
+		throw "Failed to create package file $packagePath from $nuspecFilePath; check for warnings or errors."
 	}
 	
 	if (-not (Test-Path $resolvedPackagePath))

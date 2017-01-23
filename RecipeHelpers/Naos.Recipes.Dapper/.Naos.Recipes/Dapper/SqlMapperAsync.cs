@@ -19,7 +19,7 @@ using System.Threading.Tasks;
 
 namespace Dapper
 {
-    public static partial class SqlMapper
+    internal static partial class SqlMapper
     {
         /// <summary>
         /// Execute a query asynchronously using .NET 4.5 Task.
