@@ -110,7 +110,7 @@ function Nuget-GetMinimumNuSpec([string]$id, [string] $version, [string] $author
 	$contents += "        <version>$version</version>" + [Environment]::NewLine
 	$contents += "        <authors>$authors</authors>" + [Environment]::NewLine
 	$contents += "        <description>$description</description>" + [Environment]::NewLine
-	if (-not $isDevelopmentDependency)
+	if ($isDevelopmentDependency)
 	{
 		$contents += "        <developmentDependency>$($isDevelopmentDependency.ToString().ToLower())</developmentDependency>" + [Environment]::NewLine
 	}
