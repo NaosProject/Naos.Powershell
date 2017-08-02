@@ -12,7 +12,6 @@
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <tags>Powershell, CI, Build, Naos</tags>
 	<dependencies>
-        <dependency id="Spritely.Build" version="[0.2.1,1)" />
 	</dependencies>
   </metadata>
   <files>
