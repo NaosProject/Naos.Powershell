@@ -246,7 +246,7 @@ Write-Output 'BEGIN Building Debug For All Projects'
 	$msBuildDebugPropertiesDictionary.Add('Configuration', 'debug')
 	$msBuildDebugPropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
 	$msBuildDebugPropertiesDictionary.Add('RunCodeAnalysis', $RunCodeAnalysis)
-	$msBuildReleasePropertiesDictionary.Add('CodeAnalysisTreatWarningsAsErrors', $($RunCodeAnalysis -and $TreatBuildWarningsAsErrors))
+	$msBuildDebugPropertiesDictionary.Add('CodeAnalysisTreatWarningsAsErrors', $($RunCodeAnalysis -and $TreatBuildWarningsAsErrors))
 	MsBuild-Custom -customBuildFilePath $solutionFilePath -target 'Build' -customPropertiesDictionary $msBuildDebugPropertiesDictionary -diagnosticLogFileName $diagnosticLogFilePathDebug -customLogger $CustomMsBuildLogger
 	if ($SaveFileAsBuildArtifact -ne $null)
 	{
