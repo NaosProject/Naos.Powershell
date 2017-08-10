@@ -2,47 +2,75 @@
 
 Write-Host $env:APPVEYOR_JOB_ID
 Write-Host $env:APPVEYOR_API_URL
-$TempBuildPackagesDir = "../BuildToolsFromNuGet/packages"
+
+#######################################################################
+###     Setup variables from Appveyor                               ###
+#######################################################################
+$repoPath = Resolve-Path .
+$buildVersion = $env:appveyor_build_version
+$branchName = $env:appveyor_repo_branch
+$repoName = $env:appveyor_repo_name
+$nugetUrl = $env:nuget_gallery_url
+$nugetKey = $env:nuget_api_key
+$mygetUrl = $env:myget_gallery_url
+$mygetKey = $env:myget_api_key
+
+# normal build specific
+$treatBuildWarningsAsErrors = $env:treatBuildWarningsAsErrors
+$runCodeAnalysis = $env:runCodeAnalysis
+$appveyorNugetUpdateStrategyPrivate = $env:appveyor_nuget_update_strategy_private
+$appveyorNugetUpdateStrategyPublic = $env:appveyor_nuget_update_strategy_public
+
+#######################################################################
+###     Download and dot source tools to use                        ###
+#######################################################################
+NuGet sources add -Name NaosMyGet -Source https://www.myget.org/F/naos-nuget/api/v3/index.json
+$TempBuildPackagesDir = "../TempTools/packages"
 if (-not (Test-Path $TempBuildPackagesDir)) { md $TempBuildPackagesDir | Out-Null }
 $TempBuildPackagesDir = Resolve-Path $TempBuildPackagesDir
+NuGet install 'Naos.Powershell.Build' -Prerelease -OutputDirectory $TempBuildPackagesDir
+NuGet install 'Naos.Build.Packaging' -Prerelease -OutputDirectory $TempBuildPackagesDir
+NuGet install 'Naos.Build.Conventions.RepoConfig' -Prerelease -OutputDirectory $TempBuildPackagesDir
 
-NuGet install Naos.Build -OutputDirectory $TempBuildPackagesDir
-NuGet install StyleCop.MSBuild -OutputDirectory $TempBuildPackagesDir
+$repoConfigFile = (ls $TempBuildPackagesDir -Filter 'RepoConfig.ps1' -Recurse).FullName
+if ($repoConfigFile -eq $null) {
+	ls $TempBuildPackagesDir -Recurse | %{ $_.FullName }
+	throw "Could not find 'RepoConfig.ps1' in $TempBuildPackagesDir"
+}
+&$repoConfigFile -ThrowOnPendingUpdate -PreRelease -RepositoryPath $repoPath
 
-$nuSpecTemplateFile = Join-Path (Join-Path (ls $TempBuildPackagesDir/Naos.Build.*).FullName 'scripts') 'NaosNuSpecTemplate.template-nuspec'
+$nuSpecTemplateFile = Join-Path (ls $TempBuildPackagesDir/Naos.Build.Packaging.*).FullName 'NaosNuSpecTemplate.template-nuspec'
+
 $nugetFunctionsScriptPath = $(ls $TempBuildPackagesDir -Recurse | ?{$_.Name -eq 'NuGet-Functions.ps1'}).FullName
 
 . $nugetFunctionsScriptPath
 
+#######################################################################
+###     Setup NuGet/Artifact scriptblocks                           ###
+#######################################################################
 $nugetScriptblock = { param([string] $fileName) 
-   Nuget-PublishPackage -packagePath $fileName -apiUrl $env:nuget_gallery_url -apiKey $env:nuget_api_key
-   Nuget-PublishPackage -packagePath $fileName -apiUrl $env:myget_gallery_url -apiKey $env:myget_api_key
+   Write-Host "Pushing $fileName to Build Artifacts"
+   Push-AppveyorArtifact $fileName
+
+   Write-Host "Pushing $fileName to AppVeyor Gallery"
+   Nuget-PublishPackage -packagePath $fileName -apiUrl $nugetUrl -apiKey $nugetKey
+
+   Write-Host "Pushing $fileName to MyGet Gallery"
+   Nuget-PublishPackage -packagePath $fileName -apiUrl $mygetUrl -apiKey $mygetKey
 }
 
 $artifactScriptBlock = { param([string] $fileName) 
-#   Push-AppveyorArtifact $fileName 
+   Write-Host "Pushing $fileName to Build Artifacts"
+   Push-AppveyorArtifact $fileName
 }
 
-
-$styleCopTargetsPath = (ls "$TempBuildPackagesDir/*/*/*" -Filter 'StyleCop.MSBuild.Targets').FullName
-
-$ourStyleCopSettingsFile = Join-Path (Join-Path (ls $TempBuildPackagesDir/Naos.Build.*).FullName 'scripts') 'Settings.StyleCop'
-$theirStyleCopSettingsFileLocation = Join-Path (ls $TempBuildPackagesDir/StyleCop.MSBuild.*).FullName 'tools'
-cp $ourStyleCopSettingsFile $theirStyleCopSettingsFileLocation -Force
-
-&$artifactScriptBlock($ourStyleCopSettingsFile)
+#######################################################################
+###     Setup Prerequistes and run build                            ###
+#######################################################################
 &$artifactScriptBlock($nuSpecTemplateFile)
-
-$initScripts = (ls "$TempBuildPackagesDir/*/*/*" -Filter 'init.ps1')
-foreach ($initScript in $initScripts) {
-	write-host "Running: " $initScript.FullName
-	$parentDir = Split-Path -parent $initScript.FullName
-	$parentDir = Split-Path -parent $parentDir
-	&$initScript.FullName -installPath $parentDir
-}
 
 $customMsBuildLogger = 'C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll'
 
 $buildScript = Join-Path (Join-Path (ls $TempBuildPackagesDir/Naos.Powershell.Build.*).FullName 'scripts') 'Build.ps1'
 
-&$buildScript -Version $env:appveyor_build_version -SourceDirectory (Resolve-Path '.') -BuildPackagesDirectory $TempBuildPackagesDir -BuildExtensionsDirectory (Resolve-Path '../BuildToolsFromNuGet/.build') -PackagesOutputDirectory (Resolve-Path '.') -BranchName $env:appveyor_repo_branch -GalleryUrl $env:nuget_gallery_url -PackageUpdateStrategyPrivateGallery 'None' -PackageUpdateStrategyPublicGallery $env:appveyor_nuget_update_strategy_public -StyleCopTargetsPath $styleCopTargetsPath -TreatBuildWarningsAsErrors ($env:treatBuildWarningsAsErrors -eq 'true') -RunCodeAnalysis ($env:runCodeAnalysis -eq 'true')  -RunJavaScriptTests ($env:runJavaScriptTests -eq 'true') -NuSpecTemplateFilePath $nuSpecTemplateFile -Authors 'Naos Project' -PushNuGetPackageFile $nugetScriptblock -SaveFileAsBuildArtifact $artifactScriptBlock -CustomMsBuildLogger $customMsBuildLogger -Run
+&$buildScript -Version $buildVersion -SourceDirectory (Resolve-Path '.') -BuildPackagesDirectory $TempBuildPackagesDir -PackagesOutputDirectory (Resolve-Path '.') -BranchName $branchName -GalleryUrl $appveyorNugetUrl -PackageUpdateStrategyPrivateGallery $appveyorNugetUpdateStrategyPrivate -PackageUpdateStrategyPublicGallery $appveyorNugetUpdateStrategyPublic -TreatBuildWarningsAsErrors ($treatBuildWarningsAsErrors -eq 'true') -RunCodeAnalysis ($runCodeAnalysis -eq 'true') -NuSpecTemplateFilePath $nuSpecTemplateFile -Authors 'Naos Project' -PushNuGetPackageFile $nugetScriptblock -SaveFileAsBuildArtifact $artifactScriptBlock -CustomMsBuildLogger $customMsBuildLogger -Run
