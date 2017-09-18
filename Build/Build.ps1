@@ -295,9 +295,11 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
 		$isConsoleApp = MsBuild-IsConsoleApp -projectFilePath $projFilePath
 		$webPublishPath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
+		$isTestProjectWithoutNuSpecWithRecipes = (-not $isNonTestLibrary) -and (-not (Test-Path $nuspecFilePath)) -and ($recipeNuspecs -ne $null)
 		
 		if ( $isNonTestLibrary -or 
 			 (Test-Path $nuspecFilePath) -or 
+			 $isTestProjectWithoutNuSpecWithRecipes -or
 			 ($isWebProject -and (Test-Path $webPublishPath) -or
 			 $isConsoleApp)
 		   )
@@ -371,13 +373,20 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 
 				$nuspecFilesCreated.Add($nuspecFilePath)
 			}
+			elseif($isTestProjectWithoutNuSpecWithRecipes)
+			{
+				Write-Output "Test project without nuspec but found recipes to publish packages for."
+			}
 			else
 			{
 				Write-Output "Using existing NuSpec file: $NuSpecFilePath"
 			}
 
-			$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
-			$createdPackagePaths.Add($packageFile)
+			if (-not $isTestProjectWithoutNuSpecWithRecipes)
+			{
+				$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
+				$createdPackagePaths.Add($packageFile)
+			}
 			
 			$recipeNuspecs | %{
 				$overrideNuspec = $_
@@ -407,7 +416,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		else
 		{
 			# if manual created file then always use; for auto-create - skipping everything except libraries right now
-			Write-Output "   Skipping $projFilePath because this project was detected as a i) test library (EndsWith 'Test.csproj' or 'Test.vbproj'), ii) non-published web project, iii) an existing NuSpec file was not found at ($nuSpecFilePath)"
+			Write-Output "   Skipping $projFilePath because this project was detected as a i) test library (EndsWith 'Test.csproj' or 'Test.vbproj'), ii) non-published web project, iii) an existing NuSpec file was not found at ($nuSpecFilePath), iv) no recipe-nuspec files found."
 		}
 	}
 Write-Output 'END Create NuGet Packages'
