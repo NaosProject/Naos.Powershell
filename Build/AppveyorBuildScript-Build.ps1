@@ -16,6 +16,7 @@ $mygetKey = $env:myget_api_key
 ###     Download NuGet tools & Setup NuGet/Artifact scriptblocks    ###
 #######################################################################
 NuGet sources add -Name NaosMyGet -Source https://www.myget.org/F/naos-nuget/api/v3/index.json
+NuGet sources add -Name ObcMyGet -Source https://www.myget.org/F/obeautifulecode-nuget/api/v3/index.json
 $TempBuildPackagesDir = "../TempTools/packages"
 if (-not (Test-Path $TempBuildPackagesDir)) { md $TempBuildPackagesDir | Out-Null }
 $TempBuildPackagesDir = Resolve-Path $TempBuildPackagesDir

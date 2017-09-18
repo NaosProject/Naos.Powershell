@@ -25,6 +25,7 @@ $appveyorNugetUpdateStrategyPublic = $env:appveyor_nuget_update_strategy_public
 ###     Download and dot source tools to use                        ###
 #######################################################################
 NuGet sources add -Name NaosMyGet -Source https://www.myget.org/F/naos-nuget/api/v3/index.json
+NuGet sources add -Name ObcMyGet -Source https://www.myget.org/F/obeautifulecode-nuget/api/v3/index.json
 $TempBuildPackagesDir = "../TempTools/packages"
 if (-not (Test-Path $TempBuildPackagesDir)) { md $TempBuildPackagesDir | Out-Null }
 $TempBuildPackagesDir = Resolve-Path $TempBuildPackagesDir
