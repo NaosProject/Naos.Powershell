@@ -50,8 +50,8 @@ $preReleaseSupportVersion = Nuget-CreatePreReleaseSupportedVersion -version $bui
 # discover the distinct recipes
 $recipes = ls $repoPath | ?{ $_.PSIsContainer } | ?{ -not $_.Name.StartsWith('.') } | %{$_}
 
-# create the nuspec files in place
-$recipes | %{
+# create the nuspec files in place (only ones that do NOT have a specifically defined nuspec file (override/recipe-nuspecs are ok as well as none)
+$recipes | ?{(ls $_ -filter "*.$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)") -eq $null} | %{
 	$recipePath = $_.FullName
 	Write-Output ''
 	Write-Output "Creating NuSpec for '$recipePath'"
