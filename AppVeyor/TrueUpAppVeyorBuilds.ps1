@@ -12,10 +12,10 @@ The name of the project to use as a reference for configuration.
 The name of a single project to true up to reference (optional, default is ALL projects in account).
 
 .PARAMETER ApiToken
-The AppVeyor provided API Token
+The AppVeyor provided API Token.
 
 .PARAMETER BlackList
-A collection of project names to exclude from
+A collection of project names to exclude from.
 
 .PARAMETER RunForTarget
 Switch to initiate execution, will only work on a target project.
@@ -31,7 +31,7 @@ param(
 	[string] $ReferenceProjectName = $(throw 'Must provide a ReferenceProjectName'),
 	[string] $TargetProjectName = $null,
 	[string] $ApiToken = $(throw 'Must provide an ApiToken'),
-	[Array] $BlackList = @('asdfasdfasdf'),
+	[Array]  $BlackList = @('asdfasdfasdf'),
 	[switch] $RunForTarget,
 	[switch] $RunForAll
 )
