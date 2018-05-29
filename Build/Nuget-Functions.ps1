@@ -254,14 +254,14 @@ function Nuget-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml
 		$node = $_
 		$name = $node.Name
 		$existingNode = $nuSpecFileXml.package.ChildNodes | ?{$_.Name -eq $name}
-		if ($existingNode -eq $null)
+		if (($existingNode -eq $null) -and ($node -ne $null))
 		{	    
 			$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
 			[void]$nuSpecFileXml.package.AppendChild($importedNode)
 		}
 	}
 	
-	$overrideNuSpecFileXml.package.metadata.ChildNodes | %{
+	$overrideNuSpecFileXml.package.metadata.ChildNodes | ?{$_ -ne $null} | %{
 		$node = $_
 		$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
 		$existingNode = $nuSpecFileXml.package.metadata.ChildNodes | ?{$_.Name -eq $importedNode.Name}
@@ -280,7 +280,7 @@ function Nuget-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml
 		}
 	}	
 	
-	$overrideNuSpecFileXml.package.files.ChildNodes | %{
+	$overrideNuSpecFileXml.package.files.ChildNodes | ?{$_ -ne $null} | %{
 		$node = $_
 		$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
 		$existingNode = $nuSpecFileXml.package.files.ChildNodes | ?{$_.src -eq $importedNode.src}
