@@ -253,8 +253,9 @@ function Nuget-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml
 	$overrideNuSpecFileXml.package.ChildNodes | %{
 		$node = $_
 		$name = $node.Name
-		if ($name -ne 'metadata')
-		{
+		$existingNode = $nuSpecFileXml.package.ChildNodes | ?{$_.Name -eq $name}
+		if ($existingNode -eq $null)
+		{	    
 			$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
 			[void]$nuSpecFileXml.package.AppendChild($importedNode)
 		}
@@ -276,6 +277,25 @@ function Nuget-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml
 			}
 			
 			[void]$nuSpecFileXml.package.metadata.AppendChild($importedNode)
+		}
+	}	
+	
+	$overrideNuSpecFileXml.package.files.ChildNodes | %{
+		$node = $_
+		$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
+		$existingNode = $nuSpecFileXml.package.files.ChildNodes | ?{$_.Name -eq $importedNode.Name}
+		if ($existingNode -ne $null)
+		{
+			[void]$nuSpecFileXml.package.files.ReplaceChild($importedNode, $existingNode)
+		}
+		else
+		{
+			if (-not [String]::IsNullOrEmpty($autoPackageId))
+			{
+				$importedNode.InnerXml = $importedNode.InnerXml.Replace('$autoPackageId$', $autoPackageId)
+			}
+			
+			[void]$nuSpecFileXml.package.files.AppendChild($importedNode)
 		}
 	}
 }
