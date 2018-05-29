@@ -291,20 +291,15 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		$projFileItem = Get-Item $projFilePath
 		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
 		$recipeNuspecs = ls (Split-Path $projFilePath) -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" | %{$_.FullName}
-		$isLibary = MsBuild-IsLibrary -projectFilePath $projFilePath
-		$isNonTestLibrary = ($isLibary -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj'))))
-		$isNonRecipesLibrary = ($isLibary -and (-not ((Get-Item $projFilePath).name.EndsWith('Recipes.csproj') -or (Get-Item $projFilePath).name.EndsWith('Recipes.vbproj'))))
+		$isNonTestLibrary = ((MsBuild-IsLibrary -projectFilePath $projFilePath) -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj'))))
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
 		$isConsoleApp = MsBuild-IsConsoleApp -projectFilePath $projFilePath
 		$webPublishPath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
 		$isTestProjectWithoutNuSpecWithRecipes = (-not $isNonTestLibrary) -and (-not (Test-Path $nuspecFilePath)) -and ($recipeNuspecs -ne $null)
-		$isRecipesProjectWithoutNuSpecWithRecipes = (-not $isNonRecipesLibrary) -and (-not (Test-Path $nuspecFilePath)) -and ($recipeNuspecs -ne $null)
 		
 		if ( $isNonTestLibrary -or 
-		     $isNonRecipesLibrary -or
 			 (Test-Path $nuspecFilePath) -or 
 			 $isTestProjectWithoutNuSpecWithRecipes -or
-			 $isRecipesProjectWithoutNuSpecWithRecipes -or
 			 ($isWebProject -and (Test-Path $webPublishPath) -or
 			 $isConsoleApp)
 		   )
@@ -382,16 +377,12 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 			{
 				Write-Output "Test project without nuspec but found recipes to publish packages for."
 			}
-			elseif($isRecipesProjectWithoutNuSpecWithRecipes)
-			{
-				Write-Output "Recipes project without nuspec but found recipes to publish packages for."
-			}
 			else
 			{
 				Write-Output "Using existing NuSpec file: $NuSpecFilePath"
 			}
 
-			if ((-not $isTestProjectWithoutNuSpecWithRecipes) -and (-not $isRecipesProjectWithoutNuSpecWithRecipes))
+			if (-not $isTestProjectWithoutNuSpecWithRecipes)
 			{
 				$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
 				$createdPackagePaths.Add($packageFile)
