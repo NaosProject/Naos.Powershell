@@ -283,7 +283,7 @@ function Nuget-OverrideNuSpec([xml] $nuSpecFileXml, [xml] $overrideNuSpecFileXml
 	$overrideNuSpecFileXml.package.files.ChildNodes | %{
 		$node = $_
 		$importedNode = $nuSpecFileXml.ImportNode($node, $deepImport)
-		$existingNode = $nuSpecFileXml.package.files.ChildNodes | ?{$_.Name -eq $importedNode.Name}
+		$existingNode = $nuSpecFileXml.package.files.ChildNodes | ?{$_.src -eq $importedNode.src}
 		if ($existingNode -ne $null)
 		{
 			[void]$nuSpecFileXml.package.files.ReplaceChild($importedNode, $existingNode)
