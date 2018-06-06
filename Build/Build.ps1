@@ -288,21 +288,21 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 	$projectFilePaths | 
 	%{
 		$projFilePath = Resolve-Path $_
-		$projFileItem = Get-Item $projFilePath
-		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
-		$recipeNuspecs = ls (Split-Path $projFilePath) -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" | %{$_.FullName}
-		$isNonTestLibrary = ((MsBuild-IsLibrary -projectFilePath $projFilePath) -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj'))))
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
 		$isConsoleApp = MsBuild-IsConsoleApp -projectFilePath $projFilePath
-		$webPublishPath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
-		$isTestProjectWithoutNuSpecWithRecipes = (-not $isNonTestLibrary) -and (-not (Test-Path $nuspecFilePath)) -and ($recipeNuspecs -ne $null)
+		$isLibrary = (MsBuild-IsLibrary -projectFilePath $projFilePath)
+		$isNonTestLibrary = ($isLibrary -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj') -or (Get-Item $projFilePath).name.EndsWith('Tests.csproj') -or (Get-Item $projFilePath).name.EndsWith('Tests.vbproj'))))
+		$isNonRecipesLibrary = ($isLibrary -and (-not ((Get-Item $projFilePath).name.EndsWith('Recipe.csproj') -or (Get-Item $projFilePath).name.EndsWith('Recipe.vbproj') -or (Get-Item $projFilePath).name.EndsWith('Recipes.csproj') -or (Get-Item $projFilePath).name.EndsWith('Recipes.vbproj'))))
+		$isLibraryToAutoPublishToNuget = $isLibrary -and $isNonTestLibrary -and $isNonRecipesLibrary
 		
-		if ( $isNonTestLibrary -or 
-			 (Test-Path $nuspecFilePath) -or 
-			 $isTestProjectWithoutNuSpecWithRecipes -or
-			 ($isWebProject -and (Test-Path $webPublishPath) -or
-			 $isConsoleApp)
-		   )
+		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
+		$recipeNuspecs = ls (Split-Path $projFilePath) -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" | %{$_.FullName}
+		$projFileItem = Get-Item $projFilePath
+		$webPublishPath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
+		$shouldBuildPackageFromProject = (Test-Path $nuspecFilePath) -or ($isConsoleApp) -or ($isLibraryToAutoPublishToNuget) -or ($isWebProject -and (Test-Path $webPublishPath)
+	    $shouldBuildRecipesFromProject = ($recipeNuspecs -ne $null)
+		
+		if ($shouldBuildPackageFromProject -or $shouldBuildRecipesFromProject)
 		{
 			# we do this recursive because we want n level deep dependencies to make sure all packages needed make it to the nuspec file
 			$projectReferences = MsBuild-GetProjectReferences -projectFilePath $projFilePath -recursive $true
@@ -349,7 +349,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 				
 				$maintainSubpathFrom = $binRelease
 			}
-			else
+			elseif($shouldBuildPackageFromProject)
 			{
 				Write-Output "Using output files specified in $projFilePath"
 				$projFolderPath = Split-Path $projFilePath
@@ -366,57 +366,65 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 
 			# we'll delete at end...
 			$nuspecFilesCreated = New-Object System.Collections.Generic.List``1[System.String]
-			if (-not (Test-Path $nuspecFilePath))
+			if ((-not (Test-Path $nuspecFilePath)) -and $shouldBuildPackageFromProject)
 			{
 				Write-Output "Creating a NuSpec file from Project"
 				NuGet-CreateNuSpecFileFromProject -projFilePath $projFilePath -projectReferences $projectReferences -filesToPackageFolderMap $outputFilesPackageFolderMap -maintainSubpathFrom $maintainSubpathFrom -authors $Authors -nuSpecTemplateFilePath $NuSpecTemplateFilePath
 
 				$nuspecFilesCreated.Add($nuspecFilePath)
 			}
-			elseif($isTestProjectWithoutNuSpecWithRecipes)
+			elseif($shouldBuildRecipesFromProject)
 			{
-				Write-Output "Test project without nuspec but found recipes to publish packages for."
+				Write-Output "Skipping nuspec generation as only recipes published from this project."
 			}
 			else
 			{
 				Write-Output "Using existing NuSpec file: $NuSpecFilePath"
 			}
 
-			if (-not $isTestProjectWithoutNuSpecWithRecipes)
+			if (Test-Path $nuspecFilePath)
+
 			{
+				if ($SaveFileAsBuildArtifact -ne $null)
+				{
+					&$SaveFileAsBuildArtifact($nuspecFilePath)
+				}
+				
 				$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $nuspecFilePath -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
 				$createdPackagePaths.Add($packageFile)
 			}
 			
-			$recipeNuspecs | %{
-				$overrideNuspec = $_
-				$recipeNuspec = $_.Replace(".$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)", ".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)")
-				$nuspecFilesCreated.Add($recipeNuspec)
-
-				$contents = Nuget-GetMinimumNuSpec -id '$package$' -version $version -authors '$authors$' -description '$description$' -isDevelopmentDependency $true
-				$contents | Out-File $recipeNuspec -Force
-
-				[xml] $recipeNuspecXml = Get-Content $recipeNuspec
-				[xml] $templateNuSpecFileXml = Get-Content $NuSpecTemplateFilePath
-				[xml] $overrideNuSpecFileXml = Get-Content $overrideNuspec
-				Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $templateNuSpecFileXml -autoPackageId $null
-				Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $null
-				$recipeNuspecXml.Save($recipeNuspec)
-				
-				$recipePackageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $recipeNuspec -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
-				$createdPackagePaths.Add($recipePackageFile)
-			}
-			
-			if ($SaveFileAsBuildArtifact -ne $null)
+			if ($shouldBuildRecipesFromProject)
 			{
-				$nuspecFilesCreated | ?{$_ -ne $nuspecFilePath} | %{&$SaveFileAsBuildArtifact($_)}
-				&$SaveFileAsBuildArtifact($nuspecFilePath)
+				$recipeNuspecs | %{
+					$overrideNuspec = $_
+					$recipeNuspec = $_.Replace(".$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)", ".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)")
+					$nuspecFilesCreated.Add($recipeNuspec)
+
+					$contents = Nuget-GetMinimumNuSpec -id '$package$' -version $version -authors '$authors$' -description '$description$' -isDevelopmentDependency $true
+					$contents | Out-File $recipeNuspec -Force
+
+					[xml] $recipeNuspecXml = Get-Content $recipeNuspec
+					[xml] $templateNuSpecFileXml = Get-Content $NuSpecTemplateFilePath
+					[xml] $overrideNuSpecFileXml = Get-Content $overrideNuspec
+					Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $templateNuSpecFileXml -autoPackageId $null
+					Nuget-OverrideNuSpec -nuSpecFileXml $recipeNuspecXml -overrideNuSpecFileXml $overrideNuSpecFileXml -autoPackageId $null
+					$recipeNuspecXml.Save($recipeNuspec)
+					
+					if ($SaveFileAsBuildArtifact -ne $null)
+					{
+						&$SaveFileAsBuildArtifact($recipeNuspec)
+					}
+					
+					$recipePackageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $recipeNuspec -version $informationalVersion -throwOnError $true -outputDirectory $PackagesOutputDirectory
+					$createdPackagePaths.Add($recipePackageFile)
+				}
 			}
 		}
 		else
 		{
 			# if manual created file then always use; for auto-create - skipping everything except libraries right now
-			Write-Output "   Skipping $projFilePath because this project was detected as a i) test library (EndsWith 'Test.csproj' or 'Test.vbproj'), ii) non-published web project, iii) an existing NuSpec file was not found at ($nuSpecFilePath), iv) no recipe-nuspec files found."
+			Write-Output "   Skipping $projFilePath because this project was detected as a i) test library (EndsWith 'Test.csproj' or 'Test.vbproj'), ii) recipes library (EndsWith 'Recipes.csproj' or 'Recipes.vbproj'), iii) non-published web project, iv) an existing NuSpec file was not found at ($nuSpecFilePath), v) no recipe-nuspec files found."
 		}
 	}
 Write-Output 'END Create NuGet Packages'
