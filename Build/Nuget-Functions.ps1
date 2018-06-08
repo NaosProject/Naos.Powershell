@@ -185,7 +185,7 @@ function Nuget-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 			$relativeFilePathToRecipeDirectory = $relativeFilePathToRecipeDirectory.Substring(1, $relativeFilePathToRecipeDirectory.Length - 1)
 		}
 		
-		$frameWorkPiece = 'net45\'
+		$frameWorkPiece = 'net461\'
 		if ($relativeFilePathToRecipeDirectory.StartsWith('.config'))
 		{
 			$frameWorkPiece = '' # shouldn't need anything for raw content...
@@ -736,7 +736,7 @@ function Nuget-CreateRecipeFromRepository([string] $packageId, [string] $templat
 	$filesNode = $recipeNuspecXml.CreateElement('files')
 	$fileNode = $recipeNuspecXml.CreateElement('file')
 	$fileNode.SetAttribute('src', $recipeFilePath)
-	$fileNode.SetAttribute('target', "content/net45/.recipes/$($packageId.Replace('.Recipes', ''))/$recipeFileName")
+	$fileNode.SetAttribute('target', "content/net461/.recipes/$($packageId.Replace('.Recipes', ''))/$recipeFileName")
 	[void]$filesNode.AppendChild($fileNode)
 	[void]$recipeNuspecXml.package.AppendChild($filesNode)
 
