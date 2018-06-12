@@ -299,7 +299,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		$recipeNuspecs = ls (Split-Path $projFilePath) -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" | %{$_.FullName}
 		$projFileItem = Get-Item $projFilePath
 		$webPublishPath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
-		$shouldBuildPackageFromProject = (Test-Path $nuspecFilePath) -or ($isConsoleApp) -or ($isLibraryToAutoPublishToNuget) -or ($isWebProject -and (Test-Path $webPublishPath)
+		$shouldBuildPackageFromProject = (Test-Path $nuspecFilePath) -or ($isConsoleApp) -or ($isLibraryToAutoPublishToNuget) -or ($isWebProject -and (Test-Path $webPublishPath))
 	    $shouldBuildRecipesFromProject = ($recipeNuspecs -ne $null)
 		
 		if ($shouldBuildPackageFromProject -or $shouldBuildRecipesFromProject)
