@@ -20,8 +20,7 @@ Param(
 )
 	
 	#####################################################################################################
-    ###  Declare registry manipulation logic here, this will deal with creating missing path pieces.  ###
-    ###            (This will move to a Registry-Functions.ps1 file eventually...)                    ###
+    ###  Declare registry manipulation logic here, this should be in Registry-Functions.ps1...        ###
 	#####################################################################################################
 	function Registry-UpdateNumericValue([String] $path, [String] $name, [Int] $newValue, [String] $description = $null)
 	{
@@ -43,43 +42,25 @@ Param(
 
 		if (-not (Test-Path $path))
 		{
-			$pathList = New-Object 'system.collections.generic.list[[string]]'
-
-			$iterator = $path
-			while (-not [String]::IsNullOrEmpty($iterator))
-			{
-	            $leaf = Split-Path $iterator -Leaf
-				$pathList.Insert(0, $leaf)
-				$iterator = Split-Path $iterator
-			}
-			
-			$iterator = ''
-			$pathList | %{
-			    $nextItem = $_
-				if (-not [String]::IsNullOrEmpty($iterator))
-				{
-					# Powershell is stupidly "fixing" this form me...
-					$iterator = $iterator.Replace('HKEY_LOCAL_MACHINE', 'HKLM')
-					$nextPath = Join-Path $iterator $nextItem
-					if (-not (Test-Path $nextPath))
-					{
-						Write-Output "    - Adding missing key ($nextItem) to '$iterator'."
-						New-Item -Path $iterator -Name $nextItem -Force | Out-Null
-					}
-					
-					$iterator = $nextPath
-				}
-				else
-				{
-					$iterator = $nextItem + ':'
-				}
-			}
+            Write-Output "    - Creating missing path '$path'."
+            New-Item -Path $path -Force | Out-Null
 		}
 		
 		Set-ItemProperty -Path $path -Name $name -Value $newValue -Force -Confirm:$false
 	}
 
+	#####################################################################################################
+    ######  Reference information used during autoring.                                            ######
+	#####################################################################################################
+	# * from https://www.laptopmag.com/articles/stop-windows-automatic-reboots
+	# * https://github.com/vFense/vFenseAgent-win/wiki/Registry-keys-for-configuring-Automatic-Updates-&-WSUS
+	# * https://gallery.technet.microsoft.com/scriptcenter/Configure-Windows-Updates-cd6c674a
 
+	#  This logic is often cited but does not seem to work on Windows 10, for me the NotificationLevel never changed from 4...
+	#$windowsUpdateSettings = (New-Object -com "Microsoft.Update.AutoUpdate").Settings
+	#$windowsUpdateSettings.NotificationLevel=2
+	#$windowsUpdateSettings.save()
+	
 	#####################################################################################################
     ######  Declare constants used to update various registry keys before performing actual work.  ######
 	#####################################################################################################
