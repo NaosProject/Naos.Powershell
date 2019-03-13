@@ -25,7 +25,7 @@ $appveyorNugetUpdateStrategyPublic = $env:appveyor_nuget_update_strategy_public
 ###     Download and dot source tools to use                        ###
 #######################################################################
 NuGet sources add -Name NaosMyGet -Source https://www.myget.org/F/naos-nuget/api/v3/index.json
-NuGet sources add -Name ObcMyGet -Source https://www.myget.org/F/obeautifulecode-nuget/api/v3/index.json
+NuGet sources add -Name ObcMyGet -Source https://www.myget.org/F/obeautifulcode-nuget/api/v3/index.json
 $TempBuildPackagesDir = "../TempTools/packages"
 if (-not (Test-Path $TempBuildPackagesDir)) { md $TempBuildPackagesDir | Out-Null }
 $TempBuildPackagesDir = Resolve-Path $TempBuildPackagesDir
@@ -40,7 +40,8 @@ if ($repoConfigFile -eq $null) {
 }
 &$repoConfigFile -ThrowOnPendingUpdate -PreRelease -RepositoryPath $repoPath
 
-$nuSpecTemplateFile = Join-Path (ls $TempBuildPackagesDir/Naos.Build.Packaging.*).FullName 'NaosNuSpecTemplate.template-nuspec'
+$nuSpecTemplateFile = $(ls $TempBuildPackagesDir -Recurse | ?{$_.Name -eq 'NaosNuSpecTemplate.template-nuspec'}).FullName
+Push-AppveyorArtifact $nuSpecTemplateFile
 
 $nugetFunctionsScriptPath = $(ls $TempBuildPackagesDir -Recurse | ?{$_.Name -eq 'NuGet-Functions.ps1'}).FullName
 

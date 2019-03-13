@@ -11,13 +11,15 @@ $buildVersion = $env:appveyor_build_version
 ###    Download and dot source tools to use             ###
 ###########################################################
 NuGet sources add -Name NaosMyGet -Source https://www.myget.org/F/naos-nuget/api/v3/index.json
-NuGet sources add -Name ObcMyGet -Source https://www.myget.org/F/obeautifulecode-nuget/api/v3/index.json
+NuGet sources add -Name ObcMyGet -Source https://www.myget.org/F/obeautifulcode-nuget/api/v3/index.json
 $TempBuildPackagesDir = "../BuildToolsFromNuGet/packages"
 if (-not (Test-Path $TempBuildPackagesDir)) { md $TempBuildPackagesDir | Out-Null }
 $TempBuildPackagesDir = Resolve-Path $TempBuildPackagesDir
-NuGet install Naos.Build -OutputDirectory $TempBuildPackagesDir
+NuGet install 'Naos.Powershell.Build' -Prerelease -OutputDirectory $TempBuildPackagesDir
+NuGet install 'Naos.Build.Packaging' -Prerelease -OutputDirectory $TempBuildPackagesDir
 
-$nuSpecTemplateFile = Join-Path (Join-Path (ls $TempBuildPackagesDir/Naos.Build.*).FullName 'scripts') 'NaosNuSpecTemplate.template-nuspec'
+$nuSpecTemplateFile = $(ls $TempBuildPackagesDir -Recurse | ?{$_.Name -eq 'NaosNuSpecTemplate.template-nuspec'}).FullName
+Push-AppveyorArtifact $nuSpecTemplateFile
 
 $nugetFunctionsScriptPath = $(ls $TempBuildPackagesDir -Recurse | ?{$_.Name -eq 'NuGet-Functions.ps1'}).FullName
 
