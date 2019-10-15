@@ -76,7 +76,8 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $packageId = $_.Id
             $blacklist.Keys | %{
                 $blackListKey = $_
-                if ($($packageId -eq $blackListKey) -or $($packageId -match $blackListKey))
+                $regexPrefixToken = 'regex:'
+                if ($($blackListKey.StartsWith($regexPrefixToken) -and $($packageId -match $blackListKey.Replace($regexPrefixToken, '')) -or $($packageId -eq $blackListKey)))
                 {
                     $blacklistEntry = $blacklist[$blackListKey]
                     Uninstall-Package -Id $packageId -ProjectName $(Split-Path $projectDirectory -Leaf)
