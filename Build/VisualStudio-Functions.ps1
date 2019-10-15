@@ -43,17 +43,22 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         Write-Output "Using projectName: '$projectName'."
     }
     
+    $regexPrefixToken = 'regex:'
     $blacklistFileContents = Get-Content $packageBlackListFile
     $blacklistLines = $blacklistFileContents.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)
     $blacklist = New-Object 'System.Collections.Generic.Dictionary[String,String]'
     $blacklistLines | %{
         $blacklistLine = $_
-        $arrowSplit = $blacklistLine.Split('>')
-        $blacklistName = $arrowSplit[0]
         $blacklistReplacement = $null
-        if ($arrowSplit.Length -gt 1)
+        
+        if (-not $blacklistLine.StartsWith(regexPrefixToken))
         {
-            $blacklistReplacement = $arrowSplit[1]
+            $arrowSplit = $blacklistLine.Split('>')
+            $blacklistName = $arrowSplit[0]
+            if ($arrowSplit.Length -gt 1)
+            {
+                $blacklistReplacement = $arrowSplit[1]
+            }
         }
         
         $blacklist.Add($blacklistName, $blacklistReplacement)
@@ -76,7 +81,6 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $packageId = $_.Id
             $blacklist.Keys | %{
                 $blackListKey = $_
-                $regexPrefixToken = 'regex:'
                 if ($($blackListKey.StartsWith($regexPrefixToken) -and $($packageId -match $blackListKey.Replace($regexPrefixToken, '')) -or $($packageId -eq $blackListKey)))
                 {
                     $blacklistEntry = $blacklist[$blackListKey]
