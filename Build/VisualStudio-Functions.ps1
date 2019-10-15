@@ -120,7 +120,7 @@ function VisualStudio-SyncDesignerGeneration([string] $projectName)
 
 }
 
-function VisualStudio-RepoConfig([string] $sourceRoot = 'D:\SourceCode\')
+function VisualStudio-RepoConfig([string] $sourceRoot = $sourceRootUsedByNaos)
 {
     if (-not (Test-Path $sourceRoot))
     {
@@ -175,8 +175,29 @@ function VisualStudio-PrintPackageReferencesAsDependencies([string] $projectName
     }
 }
 
-function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $sourceRoot = 'D:\SourceCode\', [string] $bootstrapperType = $null)
+function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $sourceRoot = $sourceRootUsedByNaos, [string] $projectKind = $null)
 {
+    # Arrange
+    $dotSplitProjectName = $projectName.Split('.')
+    if ($projectKind -eq $null)
+    {
+        if ($projectName.Contains('.Feature.'))
+        {
+            $projectKind = 'Feature'
+        }
+        else
+        {
+            $projectKind = $dotSplitProjectName[$dotSplitProjectName.Length - 1]
+        }
+    }
+    
+    $solution = $DTE.Solution
+    $solutionDirectory = Split-Path $solution.FileName
+    $solutionName = (Split-Path $solution.FileName -Leaf).Replace('.sln', '')
+
+    $projectDirectory = Join-Path $solutionDirectory $projectName
+    $organizationPrefix = $dotSplitProjectName[0]
+
     [scriptblock] $validatePath = {
         param([string] $path)
 
@@ -193,99 +214,13 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         throw "Invalid projectName: '$projectName'."
     }
     
-    # Arrange
-    $solution = $DTE.Solution
-    $solutionDirectory = Split-Path $solution.FileName
-    $solutionName = (Split-Path $solution.FileName -Leaf).Replace('.sln', '')
-    $projectDirectory = Join-Path $solutionDirectory $projectName
-    $organizationPrefix = $projectName.Split('.')[0]
-
+    $packageIdBootstrapper = "$organizationPrefix.Bootstrapper.Recipes.$projectKind"
     $templatesPath = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\VisualStudio2017ProjectTemplates"
-    $templatePathClassLibraryAssembly = Join-Path $templatesPath "AssemblyClassLibrary\csClassLibrary.vstemplate"
-    $templatePathClassLibraryRecipe = Join-Path $templatesPath "RecipeClassLibrary\csClassLibrary.vstemplate"
-    &$validatePath($templatePathClassLibraryAssembly)
-    &$validatePath($templatePathClassLibraryRecipe)
-    #$templatePathTestLibrary = Join-Path $templatesPath "ClassLibraryTest\csClassLibrary.vstemplate"
-    $templatePathTestLibrary = Join-Path $templatesPath "ConsoleApplicationTest\csConsoleApplication.vstemplate"
-    #&$validatePath($templatePathTestLibrary)
-
-    $packageIdBaseAssemblySharing = "OBeautifulCode.Type"
-    $packageIdAnalyzer = "$organizationPrefix.Build.Analyzers"
-    $packageIdBootstrapperDomain = "$organizationPrefix.Bootstrapper.Domain"
-    $packageIdBootstrapperFeature = "$organizationPrefix.Bootstrapper.Feature"
-    $packageIdBootstrapperTest = "$organizationPrefix.Bootstrapper.Test"
-    $packageIdBootstrapperSqlServer = "$organizationPrefix.Bootstrapper.SqlServer"
+    $templateFilePath = Join-Path $templatesPath "$projectKind\template.vstemplate"
+    &$validatePath($templateFilePath)
 
     # Act
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-
-    $templateFilePath = ''
-    $packages = New-Object 'System.Collections.Generic.List[String]'
-
-    if ([string]::IsNullOrWhitespace($bootstrapperType))
-    {
-        if ($projectName.Contains('.Bootstrapper.'))
-        {
-            $bootstrapperType = $visualStudioConstants.Bootstrappers.Bootstrapper
-        }
-        elseif ($projectName.EndsWith('.Domain'))
-        {
-            $bootstrapperType = $visualStudioConstants.Bootstrappers.Domain
-        }
-        elseif ($projectName.Contains('.Feature.'))
-        {
-            $bootstrapperType = $visualStudioConstants.Bootstrappers.Feature
-        }
-        elseif ($projectName.EndsWith('.Recipe') -or $projectName.EndsWith('.Recipes'))
-        {
-            $bootstrapperType = $visualStudioConstants.Bootstrappers.Recipe
-        }
-        elseif ($projectName.EndsWith('.Test') -or $projectName.EndsWith('.Tests'))
-        {
-            $bootstrapperType = $visualStudioConstants.Bootstrappers.Test
-        }
-        else
-        {
-            throw "No detectable bootstrapper type for: '$projectName'."
-        }
-    }
-    else
-    {
-        Write-Output "Using specified bootstrapperType: '$bootstrapperType'"
-    }
-    
-    if ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Bootstrapper)
-    {
-        $templateFilePath = $templatePathClassLibraryRecipe
-        $packages.Add($packageIdAnalyzer)
-        $packages.Add($packageIdBaseAssemblySharing)
-    }
-    elseif ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Domain)
-    {
-        $templateFilePath = $templatePathClassLibraryAssembly
-        $packages.Add($packageIdBootstrapperDomain)
-
-    }
-    elseif ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Feature)
-    {
-        $templateFilePath = $templatePathClassLibraryAssembly
-        $packages.Add($packageIdBootstrapperFeature)
-    }
-    elseif ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Test)
-    {
-        $templateFilePath = $templatePathTestLibrary
-        $packages.Add($packageIdBootstrapperTest)
-    }
-    elseif ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Recipe)
-    {
-        $templateFilePath = $templatePathClassLibraryRecipe
-        $packages.Add($packageIdBootstrapperTest)
-    }
-    else
-    {
-        throw "Unsupported bootstrapperType: '$bootstrapperType' for '$projectName'."
-    }
-
 
     $tempPath = [System.IO.Path]::GetTempPath()
     [string] $tempGuid = [System.Guid]::NewGuid()
@@ -324,12 +259,13 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $contents | Out-File -LiteralPath $file -Encoding UTF8
     }
     
-    # throw "$stagingTemplatePath -- $stagingTemplatePathForVs"
+    #throw "$stagingTemplatePath -- $stagingTemplatePathForVs"
     $project = $solution.AddFromTemplate($stagingTemplatePathForVs, $projectDirectory, $projectName, $false)
 
-    $packages | %{
-        Write-Host "Installing bootstrapper package: $_."
-        Install-Package -Id $_ -ProjectName $projectName
+    if (-not $projectName.Contains('Bootstrapper'))
+    {
+        Write-Host "Installing bootstrapper package: $packageIdBootstrapper."
+        Install-Package -Id $packageIdBootstrapper -ProjectName $projectName
     }
 
     #COM takes a while to let go of the template file exclusive lock...
