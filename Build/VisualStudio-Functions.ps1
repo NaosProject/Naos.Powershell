@@ -3,6 +3,7 @@ $visualStudioConstants = @{
 		Bootstrapper = 'Bootstrapper';
 		Domain = 'Domain';
 		Feature = 'Feature';
+		Recipe = 'Recipe';
 		Test = 'Test';
 	}
 }
@@ -11,6 +12,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
 {
     $solution = $DTE.Solution
     $solutionFilePath = $solution.FileName
+    $solutionName = Split-Path $solution.FileName -Leaf
     $solutionDirectory = Split-Path $solutionFilePath
 	$projectDirectories = New-Object 'System.Collections.Generic.List[String]'
     if ([String]::IsNullOrWhitespace($projectName))
@@ -131,8 +133,23 @@ function VisualStudio-RepoConfig([string] $sourceRoot = 'D:\SourceCode\')
     $solutionFile = Split-Path $solution.FileName -Leaf
     $organizationPrefix = $solutionFile.Split('.')[0]
 
+    # Act - run RepoConfig
     $scriptPath = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\RepoConfig.ps1"
 	&$scriptPath -RepositoryPath (Resolve-Path $solutionDirectory) -Update -PreRelease
+
+    # Act - add all root-level files as solution-level items (except if their contain 'sln', which filters out the solution file as well as any DotSettings files)
+    $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.Contains('sln'))  } | %{$_.FullName}
+    $repoRootFiles | %{
+        $filePath = $_
+        $solutionItemsFolderName = 'Solution Items'
+        $solutionItemsProject = $solution.Projects | ?{$_.ProjectName -eq $solutionItemsFolderName}
+        if ($solutionItemsProject -eq $null)
+        {
+            $solutionItemsProject = $solution.AddSolutionFolder($solutionItemsFolderName)
+        }
+
+        $solutionItemsProject.ProjectItems.AddFromFile($filePath)
+    }
 }
 
 function VisualStudio-PrintPackageReferencesAsDependencies([string] $projectName)
@@ -179,15 +196,18 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     # Arrange
     $solution = $DTE.Solution
     $solutionDirectory = Split-Path $solution.FileName
+    $solutionName = (Split-Path $solution.FileName -Leaf).Replace('.sln', '')
     $projectDirectory = Join-Path $solutionDirectory $projectName
     $organizationPrefix = $projectName.Split('.')[0]
 
     $templatesPath = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\VisualStudio2017ProjectTemplates"
-    $templatePathClassLibrary = Join-Path $templatesPath "ClassLibrary\csClassLibrary.vstemplate"
-    &$validatePath($templatePathClassLibrary)
+    $templatePathClassLibraryAssembly = Join-Path $templatesPath "AssemblyClassLibrary\csClassLibrary.vstemplate"
+    $templatePathClassLibraryRecipe = Join-Path $templatesPath "RecipeClassLibrary\csClassLibrary.vstemplate"
+    &$validatePath($templatePathClassLibraryAssembly)
+    &$validatePath($templatePathClassLibraryRecipe)
     #$templatePathTestLibrary = Join-Path $templatesPath "ClassLibraryTest\csClassLibrary.vstemplate"
     $templatePathTestLibrary = Join-Path $templatesPath "ConsoleApplicationTest\csConsoleApplication.vstemplate"
-    &$validatePath($templatePathTestLibrary)
+    #&$validatePath($templatePathTestLibrary)
 
     $packageIdBaseAssemblySharing = "OBeautifulCode.Type"
     $packageIdAnalyzer = "$organizationPrefix.Build.Analyzers"
@@ -216,6 +236,10 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         {
             $bootstrapperType = $visualStudioConstants.Bootstrappers.Feature
         }
+        elseif ($projectName.EndsWith('.Recipe') -or $projectName.EndsWith('.Recipes'))
+        {
+            $bootstrapperType = $visualStudioConstants.Bootstrappers.Recipe
+        }
         elseif ($projectName.EndsWith('.Test') -or $projectName.EndsWith('.Tests'))
         {
             $bootstrapperType = $visualStudioConstants.Bootstrappers.Test
@@ -232,24 +256,29 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     
     if ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Bootstrapper)
     {
-        $templateFilePath = $templatePathClassLibrary
+        $templateFilePath = $templatePathClassLibraryRecipe
         $packages.Add($packageIdAnalyzer)
         $packages.Add($packageIdBaseAssemblySharing)
     }
     elseif ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Domain)
     {
-        $templateFilePath = $templatePathClassLibrary
+        $templateFilePath = $templatePathClassLibraryAssembly
         $packages.Add($packageIdBootstrapperDomain)
 
     }
     elseif ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Feature)
     {
-        $templateFilePath = $templatePathClassLibrary
+        $templateFilePath = $templatePathClassLibraryAssembly
         $packages.Add($packageIdBootstrapperFeature)
     }
     elseif ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Test)
     {
         $templateFilePath = $templatePathTestLibrary
+        $packages.Add($packageIdBootstrapperTest)
+    }
+    elseif ($bootstrapperType -eq $visualStudioConstants.Bootstrappers.Recipe)
+    {
+        $templateFilePath = $templatePathClassLibraryRecipe
         $packages.Add($packageIdBootstrapperTest)
     }
     else
@@ -258,15 +287,57 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     }
 
 
-    Write-Host "Using template file $templateFilePath."
+    $tempPath = [System.IO.Path]::GetTempPath()
+    [string] $tempGuid = [System.Guid]::NewGuid()
+    $stagingTemplatePath = Join-Path $tempPath $tempGuid
+    Write-Host "Using template file $templateFilePath augmented at $stagingTemplatePath."
+    New-Item -ItemType Directory -Path $stagingTemplatePath
     Write-Host "Creating $projectDirectory for $organizationPrefix."
-    $project = $solution.AddFromTemplate($templateFilePath, $projectDirectory, $projectName, $false)
+    Copy-Item $(Split-Path $templateFilePath) $stagingTemplatePath -Recurse
+    $stagingTemplatePathForVs = $(ls $stagingTemplatePath -Filter $(Split-Path $templateFilePath -Leaf) -Recurse).FullName
+    
+    $tokenReplacementList = New-Object 'System.Collections.Generic.Dictionary[String,String]'
+    $tokenReplacementList.Add('$projectname$', $projectName)
+    $tokenReplacementList.Add('$solutionname$', $solutionName)
+    $tokenReplacementList.Add('$recipeconditionalcompilationsymbol$', "$($solutionName.Replace('.', ''))RecipesProject")
+
+    $templateFiles = ls $stagingTemplatePath -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
+
+    $templateFiles | %{
+        $file = $_
+        $contents = [System.IO.File]::ReadAllText($file)
+        $tokenReplacementList.Keys | %{
+            $key = $_
+            $fileSafeKey = $key.Replace('$', '')
+            $replacementValue = $tokenReplacementList[$key]
+            if ($file.Contains($fileSafeKey))
+            {
+                MoveItem $file $file.Replace($fileSafeKey, $replacementValue)
+            }
+            
+            if ($contents.Contains($key))
+            {
+                $contents = $contents.Replace($key, $replacementValue)
+            }
+        }
+        
+        $contents | Out-File -LiteralPath $file -Encoding UTF8
+    }
+    
+    # throw "$stagingTemplatePath -- $stagingTemplatePathForVs"
+    $project = $solution.AddFromTemplate($stagingTemplatePathForVs, $projectDirectory, $projectName, $false)
 
     $packages | %{
         Write-Host "Installing bootstrapper package: $_."
         Install-Package -Id $_ -ProjectName $projectName
     }
 
+    #COM takes a while to let go of the template file exclusive lock...
+    Start-Sleep 10
+    Remove-Item $stagingTemplatePath -Recurse -Force
+
+    VisualStudio-RepoConfig -sourceRoot $sourceRoot
+
     $stopwatch.Stop()
-    Write-Host "-----======>>>>>FINISHED - Total time: $($stopwatch.Elapsed) to add $projectName."
+    Write-Host "-----======>>>>>FINISHED - Total time: $($stopwatch.Elapsed) to add $projectName."   
 }
