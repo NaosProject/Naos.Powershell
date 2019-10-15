@@ -8,14 +8,14 @@ $visualStudioConstants = @{
 	}
 }
 
-function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [string] $sourceRoot = $sourceRootUsedByNaos)
+function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [string] $sourceRoot = $sourceRootUsedByNaos, [boolean] $uninstall = $false)
 {
 
     # Arrange
     $solution = $DTE.Solution
-    $organizationPrefix = $solutionFile.Split('.')[0]
     $solutionFilePath = $solution.FileName
     $solutionName = Split-Path $solution.FileName -Leaf
+    $organizationPrefix = $solutionName.Split('.')[0]
     $solutionDirectory = Split-Path $solutionFilePath
 
     $packageBlackListFile = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\NuGetPackageBlacklist.txt"
@@ -51,7 +51,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $blacklistLine = $_
         $blacklistReplacement = $null
         
-        if (-not $blacklistLine.StartsWith(regexPrefixToken))
+        if (-not $blacklistLine.StartsWith($regexPrefixToken))
         {
             $arrowSplit = $blacklistLine.Split('>')
             $blacklistName = $arrowSplit[0]
@@ -60,10 +60,16 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
                 $blacklistReplacement = $arrowSplit[1]
             }
         }
+        else
+        {
+            $blacklistName = $blacklistLine
+        }
         
         $blacklist.Add($blacklistName, $blacklistReplacement)
     }
     
+    $blacklistOffendersFound = New-Object 'System.Collections.Generic.List[String]'
+
     $projectDirectories | %{
         $projectDirectory = $_
         if (-not (Test-Path $projectDirectory))
@@ -84,13 +90,25 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
                 if ($($blackListKey.StartsWith($regexPrefixToken) -and $($packageId -match $blackListKey.Replace($regexPrefixToken, '')) -or $($packageId -eq $blackListKey)))
                 {
                     $blacklistEntry = $blacklist[$blackListKey]
-                    Uninstall-Package -Id $packageId -ProjectName $(Split-Path $projectDirectory -Leaf)
-                    if ($blacklistEntry -ne $null)
+                    if ($uninstall -eq $true)
                     {
-                        $replacementPackages.Add($blacklistEntry)
+                        Uninstall-Package -Id $packageId -ProjectName $(Split-Path $projectDirectory -Leaf)
+                        if ($blacklistEntry -ne $null)
+                        {
+                            $replacementPackages.Add($blacklistEntry)
+                        }
+
+                        #throw "Project - $projectName contains blacklisted package (ID: $($_.Id), Version: $($_.Version))"
                     }
-                    
-                    #throw "Project - $projectName contains blacklisted package (ID: $($_.Id), Version: $($_.Version))"
+                    else
+                    {
+                        if (-not $blacklistOffendersFound.Contains($packageId))
+                        {
+                            $blacklistOffendersFound.Add($packageId)
+                            
+                            Write-Host "Package in blacklist found: $packageId, matching $blacklistKey" -ForegroundColor Red
+                        }
+                    }
                 }
             }
         }
@@ -288,8 +306,8 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     }
 
     #COM takes a while to let go of the template file exclusive lock...
-    Start-Sleep 10
-    Remove-Item $stagingTemplatePath -Recurse -Force
+    #Start-Sleep 10
+    #Remove-Item $stagingTemplatePath -Recurse -Force
 
     VisualStudio-RepoConfig -sourceRoot $sourceRoot
 
