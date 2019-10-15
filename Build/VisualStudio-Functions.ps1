@@ -246,7 +246,8 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
             $replacementValue = $tokenReplacementList[$key]
             if ($file.Contains($key))
             {
-                MoveItem $file $file.Replace($key, $replacementValue)
+                $replacedFile = $file.Replace($key, $replacementValue)
+                Copy-Item $file $replacedFile
             }
             
             if ($contents.Contains($key))
