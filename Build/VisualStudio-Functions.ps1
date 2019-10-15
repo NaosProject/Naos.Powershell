@@ -10,6 +10,11 @@ $visualStudioConstants = @{
 
 function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [string] $packageBlackListFile = 'D:\SourceCode\PackageBlackList.txt')
 {
+    if (-not $(Test-Path $packageBlackListFile))
+    {
+        throw "Missing blacklist file: $packageBlackListFile"
+    }
+
     $solution = $DTE.Solution
     $solutionFilePath = $solution.FileName
     $solutionName = Split-Path $solution.FileName -Leaf
