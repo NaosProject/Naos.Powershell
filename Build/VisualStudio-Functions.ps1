@@ -8,17 +8,22 @@ $visualStudioConstants = @{
 	}
 }
 
-function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [string] $packageBlackListFile = 'D:\SourceCode\PackageBlackList.txt')
+function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [string] $sourceRoot = $sourceRootUsedByNaos)
 {
+
+    # Arrange
+    $solution = $DTE.Solution
+    $organizationPrefix = $solutionFile.Split('.')[0]
+    $solutionFilePath = $solution.FileName
+    $solutionName = Split-Path $solution.FileName -Leaf
+    $solutionDirectory = Split-Path $solutionFilePath
+
+    $packageBlackListFile = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\NuGetPackageBlacklist.txt"
     if (-not $(Test-Path $packageBlackListFile))
     {
         throw "Missing blacklist file: $packageBlackListFile"
     }
 
-    $solution = $DTE.Solution
-    $solutionFilePath = $solution.FileName
-    $solutionName = Split-Path $solution.FileName -Leaf
-    $solutionDirectory = Split-Path $solutionFilePath
 	$projectDirectories = New-Object 'System.Collections.Generic.List[String]'
     if ([String]::IsNullOrWhitespace($projectName))
     {
