@@ -62,17 +62,21 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
 
         $replacementPackages = New-Object 'System.Collections.Generic.List[String]'
         $projectPackages = New-Object 'System.Collections.Generic.List[String]'
-        $packagesConfigXml.packages.package | % {
-            if ($blacklist.ContainsKey($_.Id))
-            {
-                $blacklistEntry = $blacklist[$_.Id]
-                Uninstall-Package -Id $_.Id -ProjectName $(Split-Path $projectDirectory -Leaf)
-                if ($blacklistEntry -ne $null)
+        $packagesConfigXml.packages.package | %{
+            $packageId = $_.Id
+            $blacklist.Keys | %{
+                $blackListKey = $_
+                if ($($packageId -eq $blackListKey) -or $($packageId -match $blackListKey))
                 {
-                    $replacementPackages.Add($blacklistEntry)
+                    $blacklistEntry = $blacklist[$blackListKey]
+                    Uninstall-Package -Id $packageId -ProjectName $(Split-Path $projectDirectory -Leaf)
+                    if ($blacklistEntry -ne $null)
+                    {
+                        $replacementPackages.Add($blacklistEntry)
+                    }
+                    
+                    #throw "Project - $projectName contains blacklisted package (ID: $($_.Id), Version: $($_.Version))"
                 }
-                
-                #throw "Project - $projectName contains blacklisted package (ID: $($_.Id), Version: $($_.Version))"
             }
         }
         
