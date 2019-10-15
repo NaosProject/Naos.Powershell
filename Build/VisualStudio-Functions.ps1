@@ -244,10 +244,10 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $tokenReplacementList.Keys | %{
             $key = $_
             $replacementValue = $tokenReplacementList[$key]
+            
             if ($file.Contains($key))
             {
-                $replacedFile = $file.Replace($key, $replacementValue)
-                Copy-Item $file $replacedFile
+                $file = $file.Replace($key, $replacementValue)
             }
             
             if ($contents.Contains($key))
