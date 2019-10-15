@@ -243,11 +243,10 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $contents = [System.IO.File]::ReadAllText($file)
         $tokenReplacementList.Keys | %{
             $key = $_
-            $fileSafeKey = $key.Replace('$', '')
             $replacementValue = $tokenReplacementList[$key]
-            if ($file.Contains($fileSafeKey))
+            if ($file.Contains($key))
             {
-                MoveItem $file $file.Replace($fileSafeKey, $replacementValue)
+                MoveItem $file $file.Replace($key, $replacementValue)
             }
             
             if ($contents.Contains($key))
