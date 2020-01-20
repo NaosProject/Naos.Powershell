@@ -81,6 +81,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         
         [xml] $packagesConfigXml = Get-Content $packagesConfigFile
 
+        $uninstallPackages = New-Object 'System.Collections.Generic.List[String]'
         $replacementPackages = New-Object 'System.Collections.Generic.List[String]'
         $projectPackages = New-Object 'System.Collections.Generic.List[String]'
         $packagesConfigXml.packages.package | %{
@@ -92,7 +93,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
                     $blacklistEntry = $blacklist[$blackListKey]
                     if ($uninstall -eq $true)
                     {
-                        Uninstall-Package -Id $packageId -ProjectName $(Split-Path $projectDirectory -Leaf)
+                        $uninstallPackages.Add($packageId)
                         if ($blacklistEntry -ne $null)
                         {
                             $replacementPackages.Add($blacklistEntry)
@@ -114,6 +115,14 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         }
         
         $projectName = Split-Path $projectDirectory -Leaf
+        
+        $uninstallPackages | %{
+            if (-not [String]::IsNullOrWhitespace($_))
+            {
+                Uninstall-Package -Id $_ -ProjectName $projectName
+            }
+        }
+        
         $replacementPackages | %{
             if (-not [String]::IsNullOrWhitespace($_))
             {
@@ -157,7 +166,7 @@ function VisualStudio-SyncDesignerGeneration([string] $projectName)
 
 }
 
-function VisualStudio-RepoConfig([string] $sourceRoot = $sourceRootUsedByNaos)
+function VisualStudio-RepoConfig([string] $sourceRoot = $sourceRootUsedByNaos, [string] $nuGetSource)
 {
     if (-not (Test-Path $sourceRoot))
     {
@@ -172,7 +181,7 @@ function VisualStudio-RepoConfig([string] $sourceRoot = $sourceRootUsedByNaos)
 
     # Act - run RepoConfig
     $scriptPath = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\RepoConfig.ps1"
-	&$scriptPath -RepositoryPath (Resolve-Path $solutionDirectory) -Update -PreRelease
+	&$scriptPath -RepositoryPath (Resolve-Path $solutionDirectory) -NuGetSource $nuGetSource -Update -PreRelease -Source
 
     # Act - add all root-level files as solution-level items (except if their contain 'sln', which filters out the solution file as well as any DotSettings files)
     $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.Contains('sln'))  } | %{$_.FullName}
@@ -210,6 +219,32 @@ function VisualStudio-PrintPackageReferencesAsDependencies([string] $projectName
     $packagesConfigXml.packages.package | % {
         Write-Host "<dependency id=`"$($_.Id)`" version=`"$($_.Version)`" />"
     }
+}
+
+function VisualStudio-GetFilePathsFromProject([string] $projectFilePath)
+{
+     [System.IO.File]::ReadAllLines($projectFilePath) | ?{$_.Contains('<Compile')} | %{$_ -match 'Include="((.*))"'|out-null;$matches[0]} | %{$_.Replace('Include="', '').Replace('"', '')} |
+     %{Join-Path (Split-Path $projectFilePath) $_}
+}
+
+function VisualStudio-GetProjectFromSolution([string] $projectFilePath)
+{
+    $project = $null
+
+    $solution = $DTE.Solution
+    $solution.Projects | %{
+        if ($_.FullName -eq $projectFilePath)
+        {
+            $project = $_
+        }
+    }
+    
+    if ($project -eq $null)
+    {
+        throw "Could not find project ($projectFilePath) in solution ($($solution.FullName))"
+    }
+    
+    return $project
 }
 
 function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $sourceRoot = $sourceRootUsedByNaos, [string] $projectKind = $null)
