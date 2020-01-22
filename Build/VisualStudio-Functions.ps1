@@ -87,7 +87,9 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $blacklistFiles | %{
             $blacklistFileContents = Get-Content $_
             $blacklistLinesTemp = $blacklistFileContents.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)
-            $blacklistLines.AddRange($blacklistLinesTemp)
+            $blacklistLinesTemp | %{
+                $blacklistLines.Add($_)
+            }
         }
         
         Write-Output '    - Create consolidated NuGet package blacklist.'
