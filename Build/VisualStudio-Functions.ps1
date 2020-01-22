@@ -42,10 +42,13 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
 
     $projectDirectories | %{
         $projectDirectory = $_
+        
         if (-not (Test-Path $projectDirectory))
         {
             throw "Could not find expected path: $projectDirectory."
         }
+        
+        Write-Output "Checking: $projectDirectory"
 
         $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
         [xml] $packagesConfigXml = Get-Content $packagesConfigFile
