@@ -81,8 +81,6 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $blacklistFiles.Add($blacklistFile)
         }
 
-        Write-Output ''
-        
         $blacklistLines = New-Object 'System.Collections.Generic.List[String]'
         $blacklistFiles | %{
             $blacklistFileContents = Get-Content $_
@@ -181,6 +179,8 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
                 }
             }
         }
+        
+        Write-Output ''
     }
 }
 
