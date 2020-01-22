@@ -10,7 +10,7 @@ $visualStudioConstants = @{
 
 function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [string] $sourceRoot = $sourceRootUsedByNaos, [boolean] $uninstall = $false)
 {
-
+    Write-Output ''
     # Arrange
     $solution = $DTE.Solution
     $solutionFilePath = $solution.FileName
@@ -22,6 +22,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     if ([String]::IsNullOrWhitespace($projectName))
     {
         Write-Output "Identified following projects to check from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
+        Write-Output ''
         $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
             $projectName = $_.ProjectName
             $projectFilePath = $_.FullName
@@ -35,6 +36,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $projectDirectory = Join-Path $solutionDirectory $projectName
         $projectDirectories.Add($projectDirectory)
         Write-Output "Checking the following specified project from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
+        Write-Output ''
         Write-Output "    - '$projectName' ($projectDirectory)"
     }
 
