@@ -54,6 +54,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         }
         
         Write-Output "Checking '$(Split-Path $projectDirectory -Leaf)'"
+        Write-Output ''
 
         $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
         [xml] $packagesConfigXml = Get-Content $packagesConfigFile
