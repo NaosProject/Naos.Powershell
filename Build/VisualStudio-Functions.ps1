@@ -115,7 +115,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
                 }
             }
 
-            $bootstrapper = $(Split-Path $(Split-Path $blacklistFile -Leaf) -Leaf)
+            $bootstrapper = $(Split-Path $(Split-Path $blacklistFile) -Leaf)
             $bootstrapperToBlacklistMap.Add("$bootstrapper|$blacklistFile", $blacklist)
         }
 
