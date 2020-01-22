@@ -126,15 +126,15 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $uninstallPackages = New-Object 'System.Collections.Generic.List[String]'
         $replacementPackages = New-Object 'System.Collections.Generic.List[String]'
         $projectPackages = New-Object 'System.Collections.Generic.List[String]'
-        $packagesConfigXml.packages.package | %{
-            $packageId = $_.Id
-            $bootstrapperToBlacklistMap.Keys | %{
-                $bootstrapperKey = $_
-                $blacklist = $bootstrapperToBlacklistMap[$bootstrapperKey]
-                $bootstrapperKeySplitOnPipe = $bootstrapperKey.Split('|')
-                $bootstrapper = $bootstrapperKeySplitOnPipe[0]
-                $blacklistFile = $bootstrapperKeySplitOnPipe[1]
-                Write-Output "        - Checking installed packages against blacklist in '$bootstrapper' ($blacklistFile)."
+        $bootstrapperToBlacklistMap.Keys | %{
+            $bootstrapperKey = $_
+            $blacklist = $bootstrapperToBlacklistMap[$bootstrapperKey]
+            $bootstrapperKeySplitOnPipe = $bootstrapperKey.Split('|')
+            $bootstrapper = $bootstrapperKeySplitOnPipe[0]
+            $blacklistFile = $bootstrapperKeySplitOnPipe[1]
+            Write-Output "        - Checking installed packages against blacklist in '$bootstrapper' ($blacklistFile)."
+            $packagesConfigXml.packages.package | %{
+                $packageId = $_.Id
                 $blacklist.Keys | %{
                     $blackListKey = $_
                     if ($($blackListKey.StartsWith($regexPrefixToken) -and $($packageId -match $blackListKey.Replace($regexPrefixToken, '')) -or $($packageId -eq $blackListKey)))
