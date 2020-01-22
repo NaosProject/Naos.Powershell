@@ -61,7 +61,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         Write-Output "    - Confirm at least one bootstrapper package is installed, prefixed by '$bootstrapperPrefix'."
         if ($bootstrapperPackages.Count -eq 0)
         {
-            throw "      Did not find any 'bootstrapper' packages in '$packagesConfigFile'."
+            throw "      Did not find any 'bootstrapper' packages in ($packagesConfigFile)."
         }
 
         $nugetPackageBlacklistTextFileName = 'NuGetPackageBlacklist.txt'
@@ -72,7 +72,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             Write-Output "        - Checking '$($_.Id)'"
             if (-not $(Test-Path $blacklistFile))
             {
-                throw "        Missing expected NuGet package blacklist file $blacklistFile"
+                throw "          Missing expected NuGet package blacklist file ($blacklistFile')."
             }
             
             $blacklistFiles.Add($blacklistFile)
@@ -116,7 +116,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         #TODO: find and merge all projectrefblacklists/projectrefwhitelists
         #TODO: find kind by looking at NON-Core bootstrapper package - why do we need kind again???
         
-        Write-Output "    - Confirm no blacklist matches in '$packagesConfigFile'."
+        Write-Output "    - Confirm no blacklist matches in ($packagesConfigFile)."
         $uninstallPackages = New-Object 'System.Collections.Generic.List[String]'
         $replacementPackages = New-Object 'System.Collections.Generic.List[String]'
         $projectPackages = New-Object 'System.Collections.Generic.List[String]'
