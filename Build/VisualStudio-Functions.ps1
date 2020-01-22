@@ -18,12 +18,6 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     $organizationPrefix = $solutionName.Split('.')[0]
     $solutionDirectory = Split-Path $solutionFilePath
 
-    $packageBlackListFile = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\NuGetPackageBlacklist.txt"
-    if (-not $(Test-Path $packageBlackListFile))
-    {
-        throw "Missing blacklist file: $packageBlackListFile"
-    }
-
 	$projectDirectories = New-Object 'System.Collections.Generic.List[String]'
     if ([String]::IsNullOrWhitespace($projectName))
     {
@@ -44,30 +38,6 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     }
     
     $regexPrefixToken = 'regex:'
-    $blacklistFileContents = Get-Content $packageBlackListFile
-    $blacklistLines = $blacklistFileContents.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)
-    $blacklist = New-Object 'System.Collections.Generic.Dictionary[String,String]'
-    $blacklistLines | %{
-        $blacklistLine = $_
-        $blacklistReplacement = $null
-        
-        if (-not $blacklistLine.StartsWith($regexPrefixToken))
-        {
-            $arrowSplit = $blacklistLine.Split('>')
-            $blacklistName = $arrowSplit[0]
-            if ($arrowSplit.Length -gt 1)
-            {
-                $blacklistReplacement = $arrowSplit[1]
-            }
-        }
-        else
-        {
-            $blacklistName = $blacklistLine
-        }
-        
-        $blacklist.Add($blacklistName, $blacklistReplacement)
-    }
-    
     $blacklistOffendersFound = New-Object 'System.Collections.Generic.List[String]'
 
     $projectDirectories | %{
@@ -78,8 +48,49 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         }
 
         $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
-        
         [xml] $packagesConfigXml = Get-Content $packagesConfigFile
+        $blacklistFiles = $packagesConfigXml.packages.package | ?{$_.Id.StartsWith("$organizationPrefix.Bootstrapper")} | %{ Join-Path $solutionDirectory $("packages\$($_.Id).$($_.Version)\NuGetPackageBlacklist.txt") }
+        $missingBlacklistFiles = $blacklistFiles | ?{ -not $(Test-Path $_) }
+        if ($missingBlacklistFiles.Count -gt 0)
+        {
+            throw "Missing expected NuGet package blacklist files from Bootstrappers: $([String]::Join(',', $missingBlacklistFiles))"
+        }
+        
+        $blacklistLines = New-Object 'System.Collections.Generic.List[String]'
+        $blacklistFiles | %{
+            $blacklistFileContents = Get-Content $_
+            $blacklistLinesTemp = $blacklistFileContents.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)
+            $blacklistLines.AddRange($blacklistLinesTemp)
+        }
+        
+        $blacklist = New-Object 'System.Collections.Generic.Dictionary[String,String]'
+        $blacklistLines | %{
+            $blacklistLine = $_
+            if ($(-not $blacklistLine.StartsWith('#')) -and (-not [String]::IsNullOrWhitespace($blacklistLine)))
+            {
+                $blacklistReplacement = $null
+                
+                if (-not $blacklistLine.StartsWith($regexPrefixToken))
+                {
+                    $arrowSplit = $blacklistLine.Split('>')
+                    $blacklistName = $arrowSplit[0]
+                    if ($arrowSplit.Length -gt 1)
+                    {
+                        $blacklistReplacement = $arrowSplit[1]
+                    }
+                }
+                else
+                {
+                    $blacklistName = $blacklistLine
+                }
+                
+                $blacklist.Add($blacklistName, $blacklistReplacement)
+            }
+        }
+
+        #TODO: find and merge all projectrefblacklists/projectrefwhitelists
+        #TODO: find kind by looking at NON-Core bootstrapper package - why do we need kind again???
+        
 
         $uninstallPackages = New-Object 'System.Collections.Generic.List[String]'
         $replacementPackages = New-Object 'System.Collections.Generic.List[String]'
