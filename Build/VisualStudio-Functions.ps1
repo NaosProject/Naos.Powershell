@@ -43,7 +43,6 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     Write-Output ''
     
     $regexPrefixToken = 'regex:'
-    $blacklistOffendersFound = New-Object 'System.Collections.Generic.List[String]'
 
     $projectDirectories | %{
         $projectDirectory = $_
@@ -53,7 +52,8 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             throw "Could not find expected path: $projectDirectory."
         }
         
-        Write-Output "Checking '$(Split-Path $projectDirectory -Leaf)'"
+        $projectName = Split-Path $projectDirectory -Leaf
+        Write-Output "Checking '$projectName'"
         Write-Output ''
 
         $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
@@ -80,43 +80,43 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             
             $blacklistFiles.Add($blacklistFile)
         }
-
-        $blacklistLines = New-Object 'System.Collections.Generic.List[String]'
-        $blacklistFiles | %{
-            $blacklistFileContents = Get-Content $_
-            $blacklistLinesTemp = $blacklistFileContents.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)
-            $blacklistLinesTemp | %{
-                $blacklistLines.Add($_)
-            }
-        }
         
         Write-Output '    - Create consolidated NuGet package blacklist.'
-        $blacklist = New-Object 'System.Collections.Generic.Dictionary[String,String]'
-        $blacklistLines | %{
-            $blacklistLine = $_
-            if ($(-not $blacklistLine.StartsWith('#')) -and (-not [String]::IsNullOrWhitespace($blacklistLine)))
-            {
-                $blacklistReplacement = $null
-                
-                if (-not $blacklistLine.StartsWith($regexPrefixToken))
+        $bootstrapperToBlacklistMap = New-Object 'System.Collections.Generic.Dictionary[String,Object]'
+        $blacklistFiles | %{
+            $blacklistFile = $_
+            $blacklistFileContents = Get-Content $blacklistFile
+            $blacklistLines = $blacklistFileContents.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)
+            $blacklist = New-Object 'System.Collections.Generic.Dictionary[String,String]'
+            $blacklistLines | %{
+                $blacklistLine = $_
+                if ($(-not $blacklistLine.StartsWith('#')) -and (-not [String]::IsNullOrWhitespace($blacklistLine)))
                 {
-                    $arrowSplit = $blacklistLine.Split('>')
-                    $blacklistName = $arrowSplit[0]
-                    if ($arrowSplit.Length -gt 1)
+                    $blacklistReplacement = $null
+                    
+                    if (-not $blacklistLine.StartsWith($regexPrefixToken))
                     {
-                        $blacklistReplacement = $arrowSplit[1]
+                        $arrowSplit = $blacklistLine.Split('>')
+                        $blacklistName = $arrowSplit[0]
+                        if ($arrowSplit.Length -gt 1)
+                        {
+                            $blacklistReplacement = $arrowSplit[1]
+                        }
+                    }
+                    else
+                    {
+                        $blacklistName = $blacklistLine
+                    }
+                    
+                    if (-not $blacklist.ContainsKey($blacklistName))
+                    {
+                        $blacklist.Add($blacklistName, $blacklistReplacement)
                     }
                 }
-                else
-                {
-                    $blacklistName = $blacklistLine
-                }
-                
-                if (-not $blacklist.ContainsKey($blacklistName))
-                {
-                    $blacklist.Add($blacklistName, $blacklistReplacement)
-                }
             }
+
+            $bootstrapper = $(Split-Path $(Split-Path $blacklistFile -Leaf) -Leaf)
+            $bootstrapperToBlacklistMap.Add("$bootstrapper|$blacklistFile", $blacklist)
         }
 
         #TODO: find and merge all projectrefblacklists/projectrefwhitelists
@@ -128,28 +128,31 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $projectPackages = New-Object 'System.Collections.Generic.List[String]'
         $packagesConfigXml.packages.package | %{
             $packageId = $_.Id
-            $blacklist.Keys | %{
-                $blackListKey = $_
-                if ($($blackListKey.StartsWith($regexPrefixToken) -and $($packageId -match $blackListKey.Replace($regexPrefixToken, '')) -or $($packageId -eq $blackListKey)))
-                {
-                    $blacklistEntry = $blacklist[$blackListKey]
-                    if ($uninstall -eq $true)
+            $bootstrapperToBlacklistMap.Keys | %{
+                $bootstrapperKey = $_
+                $blacklist = $bootstrapperToBlacklistMap[$bootstrapperKey]
+                $bootstrapperKeySplitOnPipe = $bootstrapperKey.Split('|')
+                $bootstrapper = $bootstrapperKeySplitOnPipe[0]
+                $blacklistFile = $bootstrapperKeySplitOnPipe[1]
+                Write-Output "        - Checking installed packages against blacklist in '$bootstrapper' ($blacklistFile)."
+                $blacklist.Keys | %{
+                    $blackListKey = $_
+                    if ($($blackListKey.StartsWith($regexPrefixToken) -and $($packageId -match $blackListKey.Replace($regexPrefixToken, '')) -or $($packageId -eq $blackListKey)))
                     {
-                        $uninstallPackages.Add($packageId)
-                        if ($blacklistEntry -ne $null)
+                        $blacklistEntry = $blacklist[$blackListKey]
+                        if ($uninstall -eq $true)
                         {
-                            $replacementPackages.Add($blacklistEntry)
-                        }
+                            $uninstallPackages.Add($packageId)
+                            if ($blacklistEntry -ne $null)
+                            {
+                                $replacementPackages.Add($blacklistEntry)
+                            }
 
-                        #throw "Project - $projectName contains blacklisted package (ID: $($_.Id), Version: $($_.Version))"
-                    }
-                    else
-                    {
-                        if (-not $blacklistOffendersFound.Contains($packageId))
+                            #throw "Project - $projectName contains blacklisted package (ID: $($_.Id), Version: $($_.Version))"
+                        }
+                        else
                         {
-                            $blacklistOffendersFound.Add($packageId)
-                            
-                            Write-Host "Package in blacklist found: $packageId, matching $blacklistKey" -ForegroundColor Red
+                            throw "          Installed package '$packageId' matches blacklist entry '$blacklistKey'."
                         }
                     }
                 }
