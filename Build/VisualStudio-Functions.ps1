@@ -70,7 +70,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $blacklistFiles = New-Object 'System.Collections.Generic.List[String]'
         $bootstrapperPackages | %{
             $blacklistFile = Join-Path $solutionDirectory $("packages\$($_.Id).$($_.Version)\$nugetPackageBlacklistTextFileName")
-            Write-Output "      * Checking $_.Id"
+            Write-Output "      * Checking $($_.Id)"
             if (-not $(Test-Path $blacklistFile))
             {
                 throw "        Missing expected NuGet package blacklist file $blacklistFile"
