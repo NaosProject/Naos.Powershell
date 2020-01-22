@@ -187,6 +187,8 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         }
         
         Write-Output ''
+        Write-Output 'Completed NuGet Package Dependency checks - no issues found.'
+        Write-Output ''
     }
 }
 
