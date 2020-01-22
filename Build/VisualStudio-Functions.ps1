@@ -112,7 +112,10 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
                     $blacklistName = $blacklistLine
                 }
                 
-                $blacklist.Add($blacklistName, $blacklistReplacement)
+                if (-not $blacklist.ContainsKey($blacklistName))
+                {
+                    $blacklist.Add($blacklistName, $blacklistReplacement)
+                }
             }
         }
 
