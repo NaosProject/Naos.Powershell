@@ -21,21 +21,24 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
 	$projectDirectories = New-Object 'System.Collections.Generic.List[String]'
     if ([String]::IsNullOrWhitespace($projectName))
     {
-        Write-Output "Using all projects from solution: $solutionFilePath"
+        Write-Output "Identified following projects to check from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
         $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
             $projectName = $_.ProjectName
             $projectFilePath = $_.FullName
             $projectDirectory = Split-Path $projectFilePath
             $projectDirectories.Add($projectDirectory)
-            Write-Output "  - $projectName"
+            Write-Output "    - '$projectName' ($projectDirectory)"
         }
     }
     else
     {
         $projectDirectory = Join-Path $solutionDirectory $projectName
         $projectDirectories.Add($projectDirectory)
-        Write-Output "Using projectName: '$projectName'."
+        Write-Output "Checking the following specified project from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
+        Write-Output "    - '$projectName' ($projectDirectory)"
     }
+
+    Write-Output ''
     
     $regexPrefixToken = 'regex:'
     $blacklistOffendersFound = New-Object 'System.Collections.Generic.List[String]'
@@ -48,24 +51,35 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             throw "Could not find expected path: $projectDirectory."
         }
         
-        Write-Output "Checking: $projectDirectory"
+        Write-Output "Checking '$(Split-Path $projectDirectory -Leaf)'"
 
         $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
         [xml] $packagesConfigXml = Get-Content $packagesConfigFile
         $bootstrapperPrefix = "$organizationPrefix.Bootstrapper"
         $bootstrapperPackages = $packagesConfigXml.packages.package | ?{$_.Id.StartsWith($bootstrapperPrefix)}
+        
+        Write-Output "    - Confirm at least one bootstrapper package is installed, prefixed by '$bootstrapperPrefix'."
         if ($bootstrapperPackages.Count -eq 0)
         {
-            throw "Must install at least one 'bootstrapper' package; prefixed with $bootstrapperPrefix"
+            throw "      Did not find any 'bootstrapper' packages in '$packagesConfigFile'."
         }
 
-        $blacklistFiles = $bootstrapperPackages | %{ Join-Path $solutionDirectory $("packages\$($_.Id).$($_.Version)\NuGetPackageBlacklist.txt") }
-        
-        $missingBlacklistFiles = $blacklistFiles | ?{ -not $(Test-Path $_) }
-        if ($missingBlacklistFiles.Count -gt 0)
-        {
-            throw "Missing expected NuGet package blacklist files from Bootstrappers: $([String]::Join(',', $missingBlacklistFiles))"
+        $nugetPackageBlacklistTextFileName = 'NuGetPackageBlacklist.txt'
+        Write-Output "    - Confirm that all bootstrapper packages have a '$nugetPackageBlacklistTextFileName' file."
+        Write-Output ''
+        $blacklistFiles = New-Object 'System.Collections.Generic.List[String]'
+        $bootstrapperPackages | %{
+            $blacklistFile = Join-Path $solutionDirectory $("packages\$($_.Id).$($_.Version)\$nugetPackageBlacklistTextFileName")
+            Write-Output "      * Checking $_.Id"
+            if (-not $(Test-Path $blacklistFile))
+            {
+                throw "        Missing expected NuGet package blacklist file $blacklistFile"
+            }
+            
+            $blacklistFiles.Add($blacklistFile)
         }
+
+        Write-Output ''
         
         $blacklistLines = New-Object 'System.Collections.Generic.List[String]'
         $blacklistFiles | %{
@@ -74,6 +88,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $blacklistLines.AddRange($blacklistLinesTemp)
         }
         
+        Write-Output '    - Create consolidated NuGet package blacklist.'
         $blacklist = New-Object 'System.Collections.Generic.Dictionary[String,String]'
         $blacklistLines | %{
             $blacklistLine = $_
@@ -102,7 +117,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         #TODO: find and merge all projectrefblacklists/projectrefwhitelists
         #TODO: find kind by looking at NON-Core bootstrapper package - why do we need kind again???
         
-
+        Write-Output "    - Confirm no blacklist matches in '$packagesConfigFile'."
         $uninstallPackages = New-Object 'System.Collections.Generic.List[String]'
         $replacementPackages = New-Object 'System.Collections.Generic.List[String]'
         $projectPackages = New-Object 'System.Collections.Generic.List[String]'
@@ -138,17 +153,28 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         
         $projectName = Split-Path $projectDirectory -Leaf
         
-        $uninstallPackages | %{
-            if (-not [String]::IsNullOrWhitespace($_))
+        if ($uninstall -eq $true)
+        {
+            if ($uninstallPackages.Count -gt 0)
             {
-                Uninstall-Package -Id $_ -ProjectName $projectName
+                Write-Output "    - Uninstall detected blacklist packages."
+                $uninstallPackages | %{
+                    if (-not [String]::IsNullOrWhitespace($_))
+                    {
+                        Uninstall-Package -Id $_ -ProjectName $projectName
+                    }
+                }
             }
-        }
-        
-        $replacementPackages | %{
-            if (-not [String]::IsNullOrWhitespace($_))
+            
+            if ($replacementPackages.Count -gt 0)
             {
-                Install-Package -Id $_ -ProjectName $projectName
+                Write-Output "    - Install replacement packages for detected blacklisted packages."
+                $replacementPackages | %{
+                    if (-not [String]::IsNullOrWhitespace($_))
+                    {
+                        Install-Package -Id $_ -ProjectName $projectName
+                    }
+                }
             }
         }
     }
