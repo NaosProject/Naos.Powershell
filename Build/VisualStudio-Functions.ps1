@@ -49,7 +49,15 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
 
         $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
         [xml] $packagesConfigXml = Get-Content $packagesConfigFile
-        $blacklistFiles = $packagesConfigXml.packages.package | ?{$_.Id.StartsWith("$organizationPrefix.Bootstrapper")} | %{ Join-Path $solutionDirectory $("packages\$($_.Id).$($_.Version)\NuGetPackageBlacklist.txt") }
+        $bootstrapperPrefix = "$organizationPrefix.Bootstrapper"
+        $bootstrapperPackages = $packagesConfigXml.packages.package | ?{$_.Id.StartsWith($bootstrapperPrefix)}
+        if ($bootstrapperPackages.Count -eq 0)
+        {
+            throw "Must install at least one 'bootstrapper' package; prefixed with $bootstrapperPrefix"
+        }
+
+        $blacklistFiles = $bootstrapperPackages | %{ Join-Path $solutionDirectory $("packages\$($_.Id).$($_.Version)\NuGetPackageBlacklist.txt") }
+        
         $missingBlacklistFiles = $blacklistFiles | ?{ -not $(Test-Path $_) }
         if ($missingBlacklistFiles.Count -gt 0)
         {
