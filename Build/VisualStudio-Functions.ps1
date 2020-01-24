@@ -8,8 +8,14 @@ $visualStudioConstants = @{
 	}
 }
 
-function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [string] $sourceRoot = $sourceRootUsedByNaos, [boolean] $uninstall = $false)
+function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [boolean] $uninstall = $false)
 {
+    if (($projectName -ne $null) -and ($projectName.StartsWith('.\')))
+    {
+        # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
+        $projectName = $projectName.SubString(2, $projectName.Length - 2)
+    }
+    
     Write-Output ''
     # Arrange
     $solution = $DTE.Solution
@@ -192,38 +198,99 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     }
 }
 
-function VisualStudio-SyncDesignerGeneration([string] $projectName)
-{
+function VisualStudio-SyncDesignerGeneration([string] $projectName, [string] $testProjectName = $null)
+{    
+    if ([string]::IsNullOrWhitespace($projectName))
+    {
+        throw 'Specify Project Name to operate on.'
+    }
+    
+    if ($projectName.StartsWith('.\'))
+    {
+        # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
+        $projectName = $projectName.SubString(2, $projectName.Length - 2)
+    }
+    
+    if ($testProjectName.StartsWith('.\'))
+    {
+        # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
+        $testProjectName = $testProjectName.SubString(2, $testProjectName.Length - 2)
+    }
+    
+    if ([string]::IsNullOrWhitespace($testProjectName))
+    {
+        $testProjectName = $projectName + ".Test"
+    }
+    
+    function Reflection-LoadAssembly([string] $assemblyFilePath)
+    {
+        $assemblyBytes = [System.IO.File]::ReadAllBytes($assemblyFilePath)
+        [System.Reflection.Assembly]::Load($assemblyBytes)
+    }
 
-# # Selections of items in the project are done with Where-Object rather than
-# # direct access into the ProjectItems collection because if the object is
-# # moved or doesn't exist then Where-Object will give us a null response rather
-# # than the error that DTE will give us.
+    $solution = $DTE.Solution
+    $solutionDirectory = Split-Path $solution.FileName
+    $projectDirectory = Join-Path $solutionDirectory $projectName
+    $testProjectDirectory = Join-Path $solutionDirectory $testProjectName
+    
+    if (-not (Test-Path $projectDirectory))
+    {
+        throw "Expected $projectDirectory to exist."
+    }
+    
+    if (-not (Test-Path $testProjectDirectory))
+    {
+        throw "Expected $testProjectDirectory to exist."
+    }
+    
+    $projectFilePath = (ls $projectDirectory -Filter '*.csproj').FullName
+    $testProjectFilePath = (ls $testProjectDirectory -Filter '*.csproj').FullName
 
-# # The Service.cs will show with a sub-item if it's already got the designer
-# # file set. In the package upgrade scenario, you don't want to re-set all
-# # this, so skip it if it's set.
-# $service = $project.ProjectItems | Where-Object { $_.Properties.Item("Filename").Value -eq "Service.cs" -and  $_.ProjectItems.Count -eq 0 }
+    $codeGenTempDirectory = Join-Path $([System.IO.Path]::GetTempPath()) 'OBC.CodeGen-Staging'
+    $codeGenConsolePackageName = 'OBeautifulCode.CodeGen.Console'
+    &$NuGetExeFilePath install $codeGenConsolePackageName -OutputDirectory $codeGenTempDirectory
+    $codeGenConsoleDirObjects = ls $codeGenTempDirectory -Filter "$codeGenConsolePackageName*"
+    $codeGenConsoleDirPaths = New-Object 'System.Collections.Generic.List[String]'
+    if ($codeGenConsoleDirObjects.PSIsContainer)
+    {
+        $codeGenConsoleDirObjects | %{ $_.FullName } | Sort-Object -Descending | %{ $codeGenConsoleDirPaths.Add($_) }
+    }
+    else
+    {
+        # only one directory present.
+        $codeGenConsoleDirPaths = $codeGenConsoleDirPaths.Add($codeGenConsoleDirObjects)
+    }
+   
+    if (($codeGenConsoleDirPaths -eq $null) -or ($codeGenConsoleDirPaths.Count -eq 0))
+    {
+        throw "Expected to find an installed package '$codeGenConsolePackageName' at ($codeGenTempDirectory); nothing was returned."
+    }
+    
+    $codeGenConsoleLatestVersionRootDirectory = $codeGenConsoleDirPaths[0]
+    if ([String]::IsNullOrWhitespace($codeGenConsoleLatestVersionRootDirectory))
+    {
+        throw "Expected to find an installed package '$codeGenConsolePackageName' at ($codeGenTempDirectory); first entry was empty."
+    }
+    
+    $codeGenConsoleFilePath = Join-Path $codeGenConsoleLatestVersionRootDirectory 'packagedConsoleApp/OBeautifulCode.CodeGen.Console.exe'
+    if (-not (Test-Path $codeGenConsoleFilePath))
+    {
+        throw "Expected to find OBC.CodeGen.Console.exe at ($codeGenConsoleFilePath)."
+    }
+    
+    &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory
 
-# if($service -eq $null)
-# {
-    # # Upgrade scenario - user has moved/removed the Service.cs
-    # # or it already has the sub-items set.
-    # return
-# }
-
-# $designer = $project.ProjectItems | Where-Object { $_.Properties.Item("Filename").Value -eq "Service.Designer.cs" }
-
-# if($designer -eq $null)
-# {
-    # # Upgrade scenario - user has moved/removed the Service.Desginer.cs.
-    # return
-# }
-
-# # Here's where you set the designer to be a dependent file of
-# # the primary code file.
-# $service.ProjectItems.AddFromFile($designer.Properties.Item("FullPath").Value)
-
+    $projectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $projectFilePath
+    $testProjectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $testProjectFilePath
+    
+    $project = VisualStudio-GetProjectFromSolution -projectFilePath $projectFilePath
+    $testProject = VisualStudio-GetProjectFromSolution -projectFilePath $testProjectFilePath
+    
+    $projectSouceFiles = ls $projectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ?{-not $_.Contains('\obj\')}
+    $testProjectSourceFiles = ls $testProjectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ?{-not $_.Contains('\obj\')}
+    
+    $projectSouceFiles | ?{ -not $projectFilesFromCsproj.Contains($_) } | %{ $project.ProjectItems.AddFromFile($_) }
+    $testProjectSourceFiles | ?{ -not $testProjectFilesFromCsproj.Contains($_) } | %{ $testProject.ProjectItems.AddFromFile($_) }
 }
 
 function VisualStudio-RepoConfig([string] $sourceRoot = $sourceRootUsedByNaos, [string] $nuGetSource)
