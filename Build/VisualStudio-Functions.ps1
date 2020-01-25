@@ -62,8 +62,41 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         Write-Output "Checking '$projectName'"
         Write-Output ''
 
-        $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
+        $packagesConfigFileName = 'packages.config'
+        $packagesConfigFile = Join-Path $projectDirectory $packagesConfigFileName
         [xml] $packagesConfigXml = Get-Content $packagesConfigFile
+        $expectedPackageIdsFromProjectReferences = New-Object 'System.Collections.Generic.List[String]'
+        $packageIdsInProject = New-Object 'System.Collections.Generic.List[String]'
+        $packagesConfigXml.packages.package | %{
+            $packageIdsInProject.Add($_.Id)
+        }
+        
+        $projectFilePath = (ls $projectDirectory -filter '*.csproj').FullName
+        $allReferencedProjects = MsBuild-GetProjectReferences -projectFilePath $projectFilePath -recursive $true
+        $allReferencedProjects | %{
+            $projectPackageFilePath = Join-Path (Split-Path $_) $packagesConfigFileName
+            [xml] $projectPackageFileXml = Get-Content $projectPackageFilePath
+            $projectPackageFileXml.packages.package | %{
+                if (-not $_.Id.Contains('.Recipe'))
+                {
+                    $expectedPackageIdsFromProjectReferences.Add($_.Id)
+                }
+            }
+        }
+        
+        Write-Output "    - Confirm all non-recipe NuGet packages in project references are referenced directly."
+        $allReferencedProjects | %{
+            $referencedProjectFileName = (Split-Path $_ -Leaf).Replace('.csproj', '')
+            Write-Output "        - '$referencedProjectFileName' ($_)"
+        }
+        
+        $expectedPackageIdsFromProjectReferences | %{
+            if (-not $packageIdsInProject.Contains($_))
+            {
+                throw "    Expected a NuGet reference to $_"
+            }
+        }
+        
         $bootstrapperPrefix = "$organizationPrefix.Bootstrapper"
         $bootstrapperPackages = $packagesConfigXml.packages.package | ?{$_.Id.StartsWith($bootstrapperPrefix)}
         
@@ -126,7 +159,6 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         }
 
         #TODO: find and merge all projectrefblacklists/projectrefwhitelists
-        #TODO: find kind by looking at NON-Core bootstrapper package - why do we need kind again???
         
         Write-Output "    - Confirm no blacklist matches in ($packagesConfigFile)."
         $uninstallPackages = New-Object 'System.Collections.Generic.List[String]'
