@@ -8,6 +8,74 @@ $visualStudioConstants = @{
 	}
 }
 
+function VisualStudio-PreCommit()
+{
+    $packagesConfigFileName = 'packages.config'
+    $solution = $DTE.Solution
+    $solutionFilePath = $solution.FileName
+    $solutionName = Split-Path $solution.FileName -Leaf
+    $organizationPrefix = $solutionName.Split('.')[0]
+    Write-Output "Running RepoConfig on ($(Split-Path $solutionFilePath))."
+    Write-Output ''
+    VisualStudio-RepoConfig
+
+    Write-Output "Updating critical packages for all projects in solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
+    Write-Output ''
+    $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
+        $projectName = $_.ProjectName
+        $projectFilePath = $_.FullName
+        $projectDirectory = Split-Path $projectFilePath
+        Write-Output "    - '$projectName' ($projectDirectory)"
+        $packagesConfigFile = Join-Path $projectDirectory $packagesConfigFileName
+        [xml] $packagesConfigXml = Get-Content $packagesConfigFile
+        $packagesConfigXml.packages.package | %{
+            $packageId = $_.Id
+            $packageShouldBeAutoUpdated = $false
+            if ($packageId.StartsWith($organizationPrefix))
+            {
+                if ($packageId -eq "$organizationPrefix.Build.Analyzers")
+                {
+                    $packageShouldBeAutoUpdated = $true
+                }
+                if ($packageId -eq "$organizationPrefix.Build.Conventions.ReSharper")
+                {
+                    $packageShouldBeAutoUpdated = $true
+                }
+                if ($packageId.StartsWith("$organizationPrefix.Bootstrapper"))
+                {
+                    $packageShouldBeAutoUpdated = $true
+                }
+            }
+            
+            if ($packageShouldBeAutoUpdated)
+            {
+                Write-Output "        - Package '$packageId' should be checked for updates."
+                Install-Package -Id $packageId -ProjectName $projectName
+                Write-Output ''
+            }
+        }
+        
+        Write-Output ''
+    }
+    
+    Write-Output ''
+    VisualStudio-CheckNuGetPackageDependencies
+
+    Write-Output ''
+    Write-Output 'Building Release with Code Analysis'
+    Write-Output ''
+	$msBuildReleasePropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
+	$msBuildReleasePropertiesDictionary.Add('Configuration', 'release')
+	$msBuildReleasePropertiesDictionary.Add('DebugType', 'pdbonly')
+	$msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $true)
+	$msBuildReleasePropertiesDictionary.Add('RunCodeAnalysis', $true)
+	$msBuildReleasePropertiesDictionary.Add('CodeAnalysisTreatWarningsAsErrors', $true)
+	MsBuild-Custom -customBuildFilePath $solutionFilePath -target 'Build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary
+
+    Write-Output ''
+    Write-Output 'Finished PreCommit checks, all is good.'
+}
+
 function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [boolean] $uninstall = $false)
 {
     if (($projectName -ne $null) -and ($projectName.StartsWith('.\')))
