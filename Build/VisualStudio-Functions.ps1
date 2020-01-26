@@ -346,7 +346,7 @@ function VisualStudio-SyncDesignerGeneration([string] $projectName, [string] $te
     $projectFilePath = (ls $projectDirectory -Filter '*.csproj').FullName
     $testProjectFilePath = (ls $testProjectDirectory -Filter '*.csproj').FullName
 
-    $codeGenTempDirectory = Join-Path $([System.IO.Path]::GetTempPath()) 'OBC.CodeGen-Staging'
+    $codeGenTempDirectory = Join-Path $([System.IO.Path]::GetTempPath()) 'ObcCodeGenNuGetStaging'
     $codeGenConsolePackageName = 'OBeautifulCode.CodeGen.Console'
     &$NuGetExeFilePath install $codeGenConsolePackageName -OutputDirectory $codeGenTempDirectory
     $codeGenConsoleDirObjects = ls $codeGenTempDirectory -Filter "$codeGenConsolePackageName*"
@@ -377,7 +377,7 @@ function VisualStudio-SyncDesignerGeneration([string] $projectName, [string] $te
     {
         throw "Expected to find OBC.CodeGen.Console.exe at ($codeGenConsoleFilePath)."
     }
-    
+
     &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory
 
     $projectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $projectFilePath
