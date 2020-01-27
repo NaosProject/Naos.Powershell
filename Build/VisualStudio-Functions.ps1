@@ -474,7 +474,7 @@ function VisualStudio-GetProjectFromSolution([string] $projectFilePath)
     return $project
 }
 
-function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $sourceRoot = $sourceRootUsedByNaos, [string] $projectKind = $null)
+function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $sourceRoot = $sourceRootUsedByNaos, [string] $projectKind = $null, [boolean] $addTestProject = $true)
 {
     # Arrange
     $dotSplitProjectName = $projectName.Split('.')
@@ -575,4 +575,9 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
 
     $stopwatch.Stop()
     Write-Host "-----======>>>>>FINISHED - Total time: $($stopwatch.Elapsed) to add $projectName."   
+    
+    if ($addTestProject -and (-not $projectName.EndsWith('.Test')) -and (-not $projectName.EndsWith('.Tests')))
+    {
+        VisualStudio-AddNewProjectAndConfigure -projectName "$projectName.Test" -sourceRoot $sourceRoot -projectKind "$projectKind.Test" -addTestProject $false
+    }
 }
