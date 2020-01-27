@@ -190,6 +190,18 @@ try
 $scriptStartTime = [System.DateTime]::Now
 Write-Output "BEGIN Build : $($scriptStartTime.ToString('yyyyMMdd-HHmm'))"
 
+Write-Output "BEGIN Get known good version of NuGet"
+
+    $CustomNugetExeFilePath = Join-Path $WorkingDirectory 'nuget.exe'
+    WGET 'https://dist.nuget.org/win-x86-commandline/v4.7.1/nuget.exe' -OutFile $CustomNugetExeFilePath
+    if (-not (Test-Path $CustomNugetExeFilePath))
+    {
+        throw "Could not find ($CustomNugetExeFilePath)"
+    }
+    Set-Alias -Name NuGet -Value $CustomNugetExeFilePath -Scope Global
+		
+Write-Output "END Get known good version of NuGet"
+
 Write-Output "BEGIN Get Missing NuGet Packages"
 
 		NuGet-InstallMissingPackages -pkgFiles $pkgFiles -outputDir $pkgDir
