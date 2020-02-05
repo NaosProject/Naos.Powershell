@@ -454,24 +454,46 @@ function VisualStudio-GetFilePathsFromProject([string] $projectFilePath)
      %{Join-Path (Split-Path $projectFilePath) $_}
 }
 
-function VisualStudio-GetProjectFromSolution([string] $projectFilePath)
+function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, [string] $projectName = $null)
 {
-    $project = $null
-
     $solution = $DTE.Solution
-    $solution.Projects | %{
-        if ($_.FullName -eq $projectFilePath)
-        {
-            $project = $_
-        }
-    }
     
-    if ($project -eq $null)
+    if ((-not [String]::IsNullOrWhitespace($projectFilePath)) -and (-not [String]::IsNullOrWhitespace($projectName)))
     {
-        throw "Could not find project ($projectFilePath) in solution ($($solution.FullName))"
+        throw "Please only specify 'projectFilePath' ($projectFilePath) or 'projectName' ($projectName) but NOT both"
     }
-    
-    return $project
+    elseif ([String]::IsNullOrWhitespace($projectFilePath) -and [String]::IsNullOrWhitespace($projectName))
+    {
+        throw "Please only specify 'projectFilePath' ($projectFilePath) or 'projectName' ($projectName) but NOT both"
+    }
+    elseif ((-not [String]::IsNullOrWhitespace($projectFilePath)) -and [String]::IsNullOrWhitespace($projectName))
+    {
+        $projectByFilePath = $null
+        $solution.Projects | %{
+            if ($_.FullName -eq $projectFilePath)
+            {
+                $projectByFilePath = $_
+            }
+        }
+        
+        return $projectByFilePath
+    }
+    elseif ([String]::IsNullOrWhitespace($projectFilePath) -and (-not [String]::IsNullOrWhitespace($projectName)))
+    {
+        $projectByName = $null
+        $solution.Projects | %{
+            if ($_.ProjectName -eq $projectName)
+            {
+                $projectByName = $_
+            }
+        }
+        
+        return $projectByName
+    }
+    else
+    {
+        throw "Unexpected invalid input: 'projectFilePath' ($projectFilePath) or 'projectName' ($projectName)"
+    }
 }
 
 function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $sourceRoot = $sourceRootUsedByNaos, [string] $projectKind = $null, [boolean] $addTestProject = $true)
@@ -521,9 +543,24 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     # Act
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-    $tempPath = [System.IO.Path]::GetTempPath()
-    [string] $tempGuid = [System.Guid]::NewGuid()
-    $stagingTemplatePath = Join-Path $tempPath $tempGuid
+    $tempDirectoryRootPath = [System.IO.Path]::GetTempPath()
+    $tempDirectoryPrefix = "Naos.VsAddProject"
+    
+    # Remove old temp files (will eventually get unlocked by VisualStudio)
+    $priorTempDirectories = [System.IO.Directory]::GetDirectories($tempDirectoryRootPath, $tempDirectoryPrefix + '*')
+    $priorTempDirectories | %{
+        try
+        {
+            Remove-Item $_ -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        catch
+        {
+            # nothing we can do here because these are locked we will just try and remove via eventual consistency.
+        }
+    }
+    
+    [string] $tempDirectoryName = $tempDirectoryPrefix + [System.DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $stagingTemplatePath = Join-Path $tempDirectoryRootPath $tempDirectoryName
     Write-Host "Using template file $templateFilePath augmented at $stagingTemplatePath."
     New-Item -ItemType Directory -Path $stagingTemplatePath
     Write-Host "Creating $projectDirectory for $organizationPrefix."
@@ -558,18 +595,28 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $contents | Out-File -LiteralPath $file -Encoding UTF8
     }
     
-    #throw "$stagingTemplatePath -- $stagingTemplatePathForVs"
+    $isDomainProject = $false
     $project = $solution.AddFromTemplate($stagingTemplatePathForVs, $projectDirectory, $projectName, $false)
+    if (-not $projectName.EndsWith('.Domain'))
+    {
+        # if there is a domain project then add a reference
+        $domainProjectName = "$($dotSplitProjectName[0]).$($dotSplitProjectName[1]).Domain"
+        $domainProject = VisualStudio-GetProjectFromSolution -projectName $domainProjectName
+        if ($domainProject -ne $null)
+        {
+            $project.Object.References.AddProject($domainProject)
+        }
+    }
+    else
+    {
+        $isDomainProject = $true
+    }
 
     if (-not $projectName.Contains('Bootstrapper'))
     {
         Write-Host "Installing bootstrapper package: $packageIdBootstrapper."
         Install-Package -Id $packageIdBootstrapper -ProjectName $projectName
     }
-
-    #COM takes a while to let go of the template file exclusive lock...
-    #Start-Sleep 10
-    #Remove-Item $stagingTemplatePath -Recurse -Force
 
     VisualStudio-RepoConfig -sourceRoot $sourceRoot
 
@@ -578,6 +625,30 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     
     if ($addTestProject -and (-not $projectName.EndsWith('.Test')) -and (-not $projectName.EndsWith('.Tests')))
     {
-        VisualStudio-AddNewProjectAndConfigure -projectName "$projectName.Test" -sourceRoot $sourceRoot -projectKind "$projectKind.Test" -addTestProject $false
+        # auto-create a Test project and add reference to the non-test project
+        $testProjectName = "$projectName.Test"
+        VisualStudio-AddNewProjectAndConfigure -projectName $testProjectName -sourceRoot $sourceRoot -projectKind "$projectKind.Test" -addTestProject $false
+        $testProject = VisualStudio-GetProjectFromSolution -projectName $testProjectName
+        
+        if ($isDomainProject)
+        {
+            # Domain projects also need a reference to the serialization configuration projects
+            $bsonProjectName = $projectByName.Replace('.Domain', '.Serialization.Bson')
+            $jsonProjectName = $projectByName.Replace('.Domain', '.Serialization.Json')
+
+            VisualStudio-AddNewProjectAndConfigure -projectName $bsonProjectName -sourceRoot $sourceRoot -projectKind 'Serialization.Bson' -addTestProject $false
+            VisualStudio-AddNewProjectAndConfigure -projectName $jsonProjectName -sourceRoot $sourceRoot -projectKind 'Serialization.Json' -addTestProject $false
+
+            $bsonProject = VisualStudio-GetProjectFromSolution -projectName $bsonProjectName
+            $testProject.Object.References.AddProject($bsonProject)
+
+            $jsonProject = VisualStudio-GetProjectFromSolution -projectName $jsonProjectName
+            $testProject.Object.References.AddProject($jsonProject)
+        }
+        else
+        {
+            # Domain project will already be referenced but non-domain test projects will need a reference to their non-test version
+            $testProject.Object.References.AddProject($project)
+        }
     }
 }
