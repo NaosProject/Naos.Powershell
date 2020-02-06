@@ -46,3 +46,53 @@ function File-FindSolutionFileUnderPath([string] $path)
 
 	return $solutionFiles.FullName
 }
+
+function File-CreateTempDirectory([string] $prefix = 'Naos.FileTemp', [string] $rootPath = [System.IO.Path]::GetTempPath())
+{
+    if ([String]::IsNullOrWhitespace($prefix))
+    {
+        throw "Please specify a 'prefix' or leave black to use default of 'Naos.FileTemp'."
+    }
+    
+    if ([String]::IsNullOrWhitespace($rootPath))
+    {
+        throw "Please specify a 'rootPath' or leave black to use default of 'Environment Temp Directory'."
+    }
+
+    [string] $tempDirectoryName = $prefix + '_' + [System.DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+    $tempDirectoryPath = Join-Path $rootPath $tempDirectoryName
+    if (Test-Path $tempDirectoryPath)
+    {
+        throw "Path ($tempDirectoryPath) exists; this was not expected."
+    }
+
+    New-Item -ItemType Directory -Path $tempDirectoryPath | Out-Null
+    return $tempDirectoryPath
+}
+
+function File-TryDeleteTempDirectories([string] $prefix = 'Naos.FileTemp', [string] $rootPath = [System.IO.Path]::GetTempPath())
+{
+    if ([String]::IsNullOrWhitespace($prefix))
+    {
+        throw "Please specify a 'prefix' or leave black to use default of 'Naos.FileTemp'."
+    }
+    
+    if ([String]::IsNullOrWhitespace($rootPath))
+    {
+        throw "Please specify a 'rootPath' or leave black to use default of 'Environment Temp Directory'."
+    }
+    
+    $priorTempDirectories = [System.IO.Directory]::GetDirectories($rootPath, $prefix + '*')
+    $priorTempDirectories | %{
+        $tempDirectory = $_
+        try
+        {
+            Remove-Item $tempDirectory -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Output "Removed old temp directory ($tempDirectory)"
+        }
+        catch
+        {
+            Write-Output "Failed to remove old temp directory ($tempDirectory)"
+        }
+    }
+}
