@@ -13,13 +13,33 @@ function VisualStudio-PreCommit()
     $packagesConfigFileName = 'packages.config'
     $solution = $DTE.Solution
     $solutionFilePath = $solution.FileName
+    $solutionDirectory = Split-Path $solutionFilePath
     $solutionName = Split-Path $solution.FileName -Leaf
     $organizationPrefix = $solutionName.Split('.')[0]
-    Write-Output "Running RepoConfig on ($(Split-Path $solutionFilePath))."
+    Write-Output "Adding any root files in ($solutionDirectory) as 'Solution Items'."
+    Write-Output ''
+    $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.Contains('sln'))  } | %{$_.FullName}
+    $repoRootFiles | %{
+        $filePath = $_
+        $solutionItemsFolderName = 'Solution Items'
+        $solutionItemsProject = $solution.Projects | ?{$_.ProjectName -eq $solutionItemsFolderName}
+        if ($solutionItemsProject -eq $null)
+        {
+            $solutionItemsProject = $solution.AddSolutionFolder($solutionItemsFolderName)
+        }
+
+        $solutionItemsProject.ProjectItems.AddFromFile($filePath)
+    }
+    Write-Output ''
+    Write-Output ''
+
+    Write-Output "Running RepoConfig on ($solutionDirectory)."
     Write-Output ''
     VisualStudio-RepoConfig
+    Write-Output ''
+    Write-Output ''
 
-    Write-Output "Updating critical packages for all projects in solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
+    Write-Output "Updating critical packages for all projects in solution '$solutionName' ($solutionFilePath)."
     Write-Output ''
     $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
         $projectName = $_.ProjectName
@@ -393,36 +413,135 @@ function VisualStudio-SyncDesignerGeneration([string] $projectName, [string] $te
     $testProjectSourceFiles | ?{ -not $testProjectFilesFromCsproj.Contains($_) } | %{ $testProject.ProjectItems.AddFromFile($_) }
 }
 
-function VisualStudio-RepoConfig([string] $sourceRoot = $sourceRootUsedByNaos, [string] $nuGetSource)
+function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
 {
-    if (-not (Test-Path $sourceRoot))
-    {
-        throw "Missing expected path: '$sourceRoot'."
-    }
-
     # Arrange
     $solution = $DTE.Solution
     $solutionDirectory = Split-Path $solution.FileName
-    $solutionFile = Split-Path $solution.FileName -Leaf
-    $organizationPrefix = $solutionFile.Split('.')[0]
+    $solutionFileName = Split-Path $solution.FileName -Leaf
+    $organizationPrefix = $solutionFileName.Split('.')[0]
 
-    # Act - run RepoConfig
-    $scriptPath = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\RepoConfig.ps1"
-	&$scriptPath -RepositoryPath (Resolve-Path $solutionDirectory) -NuGetSource $nuGetSource -Update -PreRelease -Source
+    $repoConfigPackageId = "$organizationPrefix.Build.Conventions.RepoConfig"
 
-    # Act - add all root-level files as solution-level items (except if their contain 'sln', which filters out the solution file as well as any DotSettings files)
-    $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.Contains('sln'))  } | %{$_.FullName}
-    $repoRootFiles | %{
-        $filePath = $_
-        $solutionItemsFolderName = 'Solution Items'
-        $solutionItemsProject = $solution.Projects | ?{$_.ProjectName -eq $solutionItemsFolderName}
-        if ($solutionItemsProject -eq $null)
-        {
-            $solutionItemsProject = $solution.AddSolutionFolder($solutionItemsFolderName)
-        }
+    $tempDirectoryPrefix = "Naos.VsRepoConfig"
+    $scriptStartTimeUtc = [System.DateTime]::UtcNow
+    $scriptStartTime = $scriptStartTimeUtc.ToLocalTime()
 
-        $solutionItemsProject.ProjectItems.AddFromFile($filePath)
+    Write-Output "################################################################################################"
+    Write-Output "------------------------------------------------------------------------------------------------"
+    Write-Output "> Starting '$repoConfigPackageId' at $($scriptStartTime.ToString())"
+
+    $alreadyUpToDate = $false
+    $repoConfigPackageVersion = '1.0.0.0'
+    $tempDirectory = File-CreateTempDirectory -prefix $tempDirectoryPrefix
+    $instructionsFilePath = Join-Path $tempDirectory 'RepoConfigInstructions.ps1'
+    $nugetLog = Join-Path $tempDirectory 'NuGet.log'
+    if (Test-Path $tempDirectory) {
+        throw "Test path '$tempDirectory' already exists, this is NOT expected."
     }
+
+    $stateFilePath = Join-Path $solutionDirectory 'RepoConfig.state'
+    if (-not (Test-Path $stateFilePath)) {
+        Write-Output "------------------------------------------------------------------------------------------------"
+        Write-Output " > No state file found"
+        $defaultStateFileContent = ''
+        $defaultStateFileContent += "<?xml version=`"1.0`"?>" + [Environment]::NewLine
+        $defaultStateFileContent += "<repoConfigState>" + [Environment]::NewLine
+        $defaultStateFileContent += "    <version></version>" + [Environment]::NewLine
+        $defaultStateFileContent += "    <lastCheckedDateTimeUtc></lastCheckedDateTimeUtc>" + [Environment]::NewLine
+        $defaultStateFileContent += "</repoConfigState>"
+        $defaultStateFileContent | Out-File $stateFilePath
+        Write-Output " - Created $stateFilePath"
+        Write-Output " < No state file found"
+    }
+    else
+    {
+        Write-Output "------------------------------------------------------------------------------------------------"
+        Write-Output " - Target Repository Path: $solutionDirectory"
+        Write-Output " - State File Path: $stateFilePath"
+    }
+
+    $stateFilePath = Resolve-Path $stateFilePath
+    [xml] $stateFileXml = Get-Content $stateFilePath
+
+    [scriptblock] $updateState = {
+        Write-Output "------------------------------------------------------------------------------------------------"
+        Write-Output " > Updating State File"
+        $stateFileXml.repoConfigState.lastCheckedDateTimeUtc = $scriptStartTimeUtc.ToString('yyyyMMdd-HHmmssZ')
+        $stateFileXml.repoConfigState.version = $repoConfigPackageVersion
+        $stateFileXml.Save($stateFilePath)
+        Write-Output " - Changed $stateFilePath"
+        Write-Output " < Updating State File"
+    }
+
+    [scriptblock] $cleanUp = {
+        if (Test-Path $tempDirectory) {
+            Write-Output "------------------------------------------------------------------------------------------------"
+            Write-Output " > Removing working directory"
+            rm $tempDirectory -Recurse -Force
+            Write-Output " - Deleted $tempDirectory"
+            Write-Output " < Removing working directory"
+        }
+    }
+
+    # Download latest package                                                               #
+    Write-Output "------------------------------------------------------------------------------------------------"
+    Write-Output " > Installing NuGet package"
+    if ($PreRelease) {
+        nuget install $repoConfigPackageId -OutputDirectory $tempDirectory -PreRelease | Out-File $nugetLog 2>&1
+    }
+    else{
+        nuget install $repoConfigPackageId -OutputDirectory $tempDirectory | Out-File $nugetLog 2>&1
+    }
+    Write-Output " - Package: $repoConfigPackageId"
+    Write-Output " - Location: $tempDirectory"
+    Write-Output " - Log: $nugetLog"
+    Write-Output " < Installing NuGet package"
+
+    #############################################################################################
+    #     Check against state version and throw if $ThrowOnPendingUpdate is set and dont match  #
+    #############################################################################################
+    $packageFolder = ls $tempDirectory -Filter "$repoConfigPackageId*"
+    if ($packageFolder -eq $null) {
+        throw "Could not retrieve package $repoConfigPackageId or could not find $(Split-Path $instructionsFilePath -Leaf) in package"
+    }
+    else {
+        $repoConfigPackageVersion = (Split-Path $packageFolder.FullName -Leaf).Replace("$repoConfigPackageId.", '')
+        
+        $instructionsFilePath = ls $packageFolder.FullName -Filter $(Split-Path $instructionsFilePath -Leaf) -Recurse
+        if ($instructionsFilePath -eq $null) {
+            throw "Could not find $(Split-Path $instructionsFilePath -Leaf) in $packageFolder"
+        }
+        
+        $instructionsFilePath = $instructionsFilePath.FullName
+    }
+
+    $alreadyUpToDate = $stateFileXml.repoConfigState.version -eq $repoConfigPackageVersion
+
+    # Run instructions and clean up                                                         #
+    if ($alreadyUpToDate)
+    {
+        Write-Output "------------------------------------------------------------------------------------------------"
+        Write-Output " - Installed version of $repoConfigPackageId ($repoConfigPackageVersion) is the latest version."
+    }
+    else
+    {
+        Write-Output "------------------------------------------------------------------------------------------------"
+        Write-Output " > Running specific update instructions from version $repoConfigPackageVersion"
+        Write-Output ''
+        &$instructionsFilePath -solutionDirectory $solutionDirectory
+        Write-Output ''
+        Write-Output " - Executed $instructionsFilePath"
+        Write-Output " < Running specific update instructions"
+
+        &$updateState
+    }
+
+    &$cleanUp
+
+    Write-Output "------------------------------------------------------------------------------------------------"
+    Write-Output "< Finishing Script '$repoConfigPackageId' at $([System.DateTime]::Now.ToString())"
+    Write-Output "################################################################################################"
 }
 
 function VisualStudio-PrintPackageReferencesAsDependencies([string] $projectName)
@@ -498,7 +617,11 @@ function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, 
 
 function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $sourceRoot = $sourceRootUsedByNaos, [string] $projectKind = $null, [boolean] $addTestProject = $true)
 {
-    # Arrange
+    if ([string]::IsNullOrWhitespace($projectName))
+    {
+        throw "Invalid projectName: '$projectName'."
+    }
+    
     $dotSplitProjectName = $projectName.Split('.')
     if ($projectKind -eq $null)
     {
@@ -519,50 +642,21 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $projectDirectory = Join-Path $solutionDirectory $projectName
     $organizationPrefix = $dotSplitProjectName[0]
 
-    [scriptblock] $validatePath = {
-        param([string] $path)
-
-        if (-not (Test-Path $path))
-        {
-            throw "Missing expected path: '$path'."
-        }
-    }
-    
-    &$validatePath($sourceRoot)
-    
-    if ([string]::IsNullOrWhitespace($projectName))
-    {
-        throw "Invalid projectName: '$projectName'."
-    }
-    
     $packageIdBootstrapper = "$organizationPrefix.Bootstrapper.Recipes.$projectKind"
-    $templatesPath = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\VisualStudio2017ProjectTemplates"
+    $templatesPath = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\VisualStudioProjectTemplates"
     $templateFilePath = Join-Path $templatesPath "$projectKind\template.vstemplate"
     &$validatePath($templateFilePath)
 
     # Act
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-    $tempDirectoryRootPath = [System.IO.Path]::GetTempPath()
     $tempDirectoryPrefix = "Naos.VsAddProject"
     
-    # Remove old temp files (will eventually get unlocked by VisualStudio)
-    $priorTempDirectories = [System.IO.Directory]::GetDirectories($tempDirectoryRootPath, $tempDirectoryPrefix + '*')
-    $priorTempDirectories | %{
-        try
-        {
-            Remove-Item $_ -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        catch
-        {
-            # nothing we can do here because these are locked we will just try and remove via eventual consistency.
-        }
-    }
-    
-    [string] $tempDirectoryName = $tempDirectoryPrefix + [System.DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
-    $stagingTemplatePath = Join-Path $tempDirectoryRootPath $tempDirectoryName
+    # Files get locked so try and delete residue of previous runs.
+    File-TryDeleteTempDirectories -prefix $tempDirectoryPrefix    
+    $stagingTemplatePath = File-CreateTempDirectory -prefix $tempDirectoryPrefix
+
     Write-Host "Using template file $templateFilePath augmented at $stagingTemplatePath."
-    New-Item -ItemType Directory -Path $stagingTemplatePath
     Write-Host "Creating $projectDirectory for $organizationPrefix."
     Copy-Item $(Split-Path $templateFilePath) $stagingTemplatePath -Recurse
     $stagingTemplatePathForVs = $(ls $stagingTemplatePath -Filter $(Split-Path $templateFilePath -Leaf) -Recurse).FullName
