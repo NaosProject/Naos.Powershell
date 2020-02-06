@@ -436,9 +436,6 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
     $tempDirectory = File-CreateTempDirectory -prefix $tempDirectoryPrefix
     $instructionsFilePath = Join-Path $tempDirectory 'RepoConfigInstructions.ps1'
     $nugetLog = Join-Path $tempDirectory 'NuGet.log'
-    if (Test-Path $tempDirectory) {
-        throw "Test path '$tempDirectory' already exists, this is NOT expected."
-    }
 
     $stateFilePath = Join-Path $solutionDirectory 'RepoConfig.state'
     if (-not (Test-Path $stateFilePath)) {
@@ -529,7 +526,7 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
         Write-Output "------------------------------------------------------------------------------------------------"
         Write-Output " > Running specific update instructions from version $repoConfigPackageVersion"
         Write-Output ''
-        &$instructionsFilePath -solutionDirectory $solutionDirectory
+        &$instructionsFilePath -RepositoryPath $solutionDirectory
         Write-Output ''
         Write-Output " - Executed $instructionsFilePath"
         Write-Output " < Running specific update instructions"
