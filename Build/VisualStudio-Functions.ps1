@@ -630,19 +630,21 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     
     # Files get locked so try and delete residue of previous runs.
     File-TryDeleteTempDirectories -prefix $tempDirectoryPrefix    
-    $stagingTemplatePath = File-CreateTempDirectory -prefix $tempDirectoryPrefix
+    $tempDirectory = File-CreateTempDirectory -prefix $tempDirectoryPrefix
 
-    &$NuGetExeFilePath install $packageIdTemplate -OutputDirectory $stagingTemplatePath -PreRelease
-    $templateFilePath = Join-Path $stagingTemplatePath "$projectKind\template.vstemplate"
+    &$NuGetExeFilePath install $packageIdTemplate -OutputDirectory $tempDirectory -PreRelease
+    $packageDirectory = (ls $tempDirectory).FullName # we can only do this b/c there are no dependencies and it will revert to the directory information
+    $templateFilePath = Join-Path $packageDirectory "$projectKind\template.vstemplate"
     File-ThrowIfPathMissing -path $templateFilePath -because "'$packageIdTemplate' should contain the template."
     
     $tokenReplacementList = New-Object 'System.Collections.Generic.Dictionary[String,String]'
-    $tokenReplacementList.Add('$secondPrefixElement$', $dotSplitProjectName[1])
-    $tokenReplacementList.Add('$projectName$', $projectName)
-    $tokenReplacementList.Add('$solutionName$', $solutionName)
-    $tokenReplacementList.Add('$recipeConditionalCompilationSymbol$', "$($solutionName.Replace('.', ''))RecipesProject")
+    $tokenReplacementList.Add('[ORGANIZATION]', $dotSplitProjectName[0])
+    $tokenReplacementList.Add('[SOLUTION_NAME_WITHOUT_ORGANIZATION_PREFIX]', $dotSplitProjectName[1])
+    $tokenReplacementList.Add('[PROJECT_NAME]', $projectName)
+    $tokenReplacementList.Add('[SOLUTION_NAME]', $solutionName)
+    $tokenReplacementList.Add('[RECIPE_CONDITIONAL_COMPILATION_SYMBOL]', "$($solutionName.Replace('.', ''))RecipesProject")
 
-    $templateFiles = ls $stagingTemplatePath -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
+    $templateFiles = ls $packageDirectory -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
 
     $templateFiles | %{
         $file = $_
@@ -665,7 +667,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $contents | Out-File -LiteralPath $file -Encoding UTF8
     }
     
-    Write-Host "Using template file $templateFilePath augmented at $stagingTemplatePath."
+    Write-Host "Using template file $templateFilePath augmented at $packageDirectory."
     Write-Host "Creating $projectDirectory for $organizationPrefix."
 
     $isDomainProject = $false
