@@ -637,9 +637,10 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     File-ThrowIfPathMissing -path $templateFilePath -because "'$packageIdTemplate' should contain the template."
     
     $tokenReplacementList = New-Object 'System.Collections.Generic.Dictionary[String,String]'
-    $tokenReplacementList.Add('$projectname$', $projectName)
-    $tokenReplacementList.Add('$solutionname$', $solutionName)
-    $tokenReplacementList.Add('$recipeconditionalcompilationsymbol$', "$($solutionName.Replace('.', ''))RecipesProject")
+    $tokenReplacementList.Add('$secondPrefixElement$', $dotSplitProjectName[1])
+    $tokenReplacementList.Add('$projectName$', $projectName)
+    $tokenReplacementList.Add('$solutionName$', $solutionName)
+    $tokenReplacementList.Add('$recipeConditionalCompilationSymbol$', "$($solutionName.Replace('.', ''))RecipesProject")
 
     $templateFiles = ls $stagingTemplatePath -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
 
