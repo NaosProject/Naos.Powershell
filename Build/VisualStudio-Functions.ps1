@@ -485,10 +485,10 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
     Write-Output "------------------------------------------------------------------------------------------------"
     Write-Output " > Installing NuGet package"
     if ($PreRelease) {
-        nuget install $repoConfigPackageId -OutputDirectory $tempDirectory -PreRelease | Out-File $nugetLog 2>&1
+        &$NuGetExeFilePath install $repoConfigPackageId -OutputDirectory $tempDirectory -PreRelease | Out-File $nugetLog 2>&1
     }
     else{
-        nuget install $repoConfigPackageId -OutputDirectory $tempDirectory | Out-File $nugetLog 2>&1
+        &$NuGetExeFilePath install $repoConfigPackageId -OutputDirectory $tempDirectory | Out-File $nugetLog 2>&1
     }
     Write-Output " - Package: $repoConfigPackageId"
     Write-Output " - Location: $tempDirectory"
@@ -612,7 +612,7 @@ function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, 
     }
 }
 
-function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $sourceRoot = $sourceRootUsedByNaos, [string] $projectKind = $null, [boolean] $addTestProject = $true)
+function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $projectKind = $null, [boolean] $addTestProject = $true)
 {
     if ([string]::IsNullOrWhitespace($projectName))
     {
@@ -640,9 +640,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $organizationPrefix = $dotSplitProjectName[0]
 
     $packageIdBootstrapper = "$organizationPrefix.Bootstrapper.Recipes.$projectKind"
-    $templatesPath = Join-Path $sourceRoot "$organizationPrefix\$organizationPrefix.Build\Conventions\VisualStudioProjectTemplates"
-    $templateFilePath = Join-Path $templatesPath "$projectKind\template.vstemplate"
-    &$validatePath($templateFilePath)
+    $packageIdTemplate = "$organizationPrefix.Build.Conventions.VisualStudioProjectTemplates.$projectKind"
 
     # Act
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -653,10 +651,12 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     File-TryDeleteTempDirectories -prefix $tempDirectoryPrefix    
     $stagingTemplatePath = File-CreateTempDirectory -prefix $tempDirectoryPrefix
 
-    Write-Host "Using template file $templateFilePath augmented at $stagingTemplatePath."
-    Write-Host "Creating $projectDirectory for $organizationPrefix."
-    Copy-Item $(Split-Path $templateFilePath) $stagingTemplatePath -Recurse
-    $stagingTemplatePathForVs = $(ls $stagingTemplatePath -Filter $(Split-Path $templateFilePath -Leaf) -Recurse).FullName
+    &$NuGetExeFilePath install $packageIdTemplate -OutputDirectory $stagingTemplatePath -PreRelease
+    $templateFilePath = Join-Path $stagingTemplatePath "$projectKind\template.vstemplate"
+    if (-not (Test-Path $templateFilePath))
+    {
+        throw "Test-Path - expected '$packageIdTemplate' to contain a template file ($templateFilePath); it was not found."
+    }
     
     $tokenReplacementList = New-Object 'System.Collections.Generic.Dictionary[String,String]'
     $tokenReplacementList.Add('$projectname$', $projectName)
@@ -686,8 +686,11 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $contents | Out-File -LiteralPath $file -Encoding UTF8
     }
     
+    Write-Host "Using template file $templateFilePath augmented at $stagingTemplatePath."
+    Write-Host "Creating $projectDirectory for $organizationPrefix."
+
     $isDomainProject = $false
-    $project = $solution.AddFromTemplate($stagingTemplatePathForVs, $projectDirectory, $projectName, $false)
+    $project = $solution.AddFromTemplate($templateFilePath, $projectDirectory, $projectName, $false)
     if (-not $projectName.EndsWith('.Domain'))
     {
         # if there is a domain project then add a reference
@@ -709,8 +712,6 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         Install-Package -Id $packageIdBootstrapper -ProjectName $projectName
     }
 
-    VisualStudio-RepoConfig -sourceRoot $sourceRoot
-
     $stopwatch.Stop()
     Write-Host "-----======>>>>>FINISHED - Total time: $($stopwatch.Elapsed) to add $projectName."   
     
@@ -718,7 +719,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     {
         # auto-create a Test project and add reference to the non-test project
         $testProjectName = "$projectName.Test"
-        VisualStudio-AddNewProjectAndConfigure -projectName $testProjectName -sourceRoot $sourceRoot -projectKind "$projectKind.Test" -addTestProject $false
+        VisualStudio-AddNewProjectAndConfigure -projectName $testProjectName -projectKind "$projectKind.Test" -addTestProject $false
         $testProject = VisualStudio-GetProjectFromSolution -projectName $testProjectName
         
         if ($isDomainProject)
@@ -727,8 +728,8 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
             $bsonProjectName = $projectByName.Replace('.Domain', '.Serialization.Bson')
             $jsonProjectName = $projectByName.Replace('.Domain', '.Serialization.Json')
 
-            VisualStudio-AddNewProjectAndConfigure -projectName $bsonProjectName -sourceRoot $sourceRoot -projectKind 'Serialization.Bson' -addTestProject $false
-            VisualStudio-AddNewProjectAndConfigure -projectName $jsonProjectName -sourceRoot $sourceRoot -projectKind 'Serialization.Json' -addTestProject $false
+            VisualStudio-AddNewProjectAndConfigure -projectName $bsonProjectName -projectKind 'Serialization.Bson' -addTestProject $false
+            VisualStudio-AddNewProjectAndConfigure -projectName $jsonProjectName -projectKind 'Serialization.Json' -addTestProject $false
 
             $bsonProject = VisualStudio-GetProjectFromSolution -projectName $bsonProjectName
             $testProject.Object.References.AddProject($bsonProject)
