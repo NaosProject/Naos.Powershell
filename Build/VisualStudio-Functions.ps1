@@ -140,11 +140,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
 
     $projectDirectories | %{
         $projectDirectory = $_
-        
-        if (-not (Test-Path $projectDirectory))
-        {
-            throw "Could not find expected path: $projectDirectory."
-        }
+        File-ThrowIfPathMissing -path $projectDirectory
         
         $projectName = Split-Path $projectDirectory -Leaf
         Write-Output "Checking '$projectName'"
@@ -200,10 +196,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $bootstrapperPackages | %{
             $blacklistFile = Join-Path $solutionDirectory $("packages\$($_.Id).$($_.Version)\$nugetPackageBlacklistTextFileName")
             Write-Output "        - Checking '$($_.Id)'"
-            if (-not $(Test-Path $blacklistFile))
-            {
-                throw "          Missing expected NuGet package blacklist file ($blacklistFile')."
-            }
+            File-ThrowIfPathMissing -path $blacklistFile -because "bootstrapper packages should have a 'blacklist file' named '$nugetPackageBlacklistTextFileName'."
             
             $blacklistFiles.Add($blacklistFile)
         }
@@ -352,19 +345,14 @@ function VisualStudio-SyncDesignerGeneration([string] $projectName, [string] $te
     $solutionDirectory = Split-Path $solution.FileName
     $projectDirectory = Join-Path $solutionDirectory $projectName
     $testProjectDirectory = Join-Path $solutionDirectory $testProjectName
-    
-    if (-not (Test-Path $projectDirectory))
-    {
-        throw "Expected $projectDirectory to exist."
-    }
-    
-    if (-not (Test-Path $testProjectDirectory))
-    {
-        throw "Expected $testProjectDirectory to exist."
-    }
+    File-ThrowIfPathMissing -path $projectDirectory
+    File-ThrowIfPathMissing -path $testProjectDirectory
     
     $projectFilePath = (ls $projectDirectory -Filter '*.csproj').FullName
     $testProjectFilePath = (ls $testProjectDirectory -Filter '*.csproj').FullName
+    
+    File-ThrowIfPathMissing -path $projectFilePath
+    File-ThrowIfPathMissing -path $testProjectFilePath
 
     $codeGenTempDirectory = Join-Path $([System.IO.Path]::GetTempPath()) 'ObcCodeGenNuGetStaging'
     $codeGenConsolePackageName = 'OBeautifulCode.CodeGen.Console'
@@ -393,10 +381,7 @@ function VisualStudio-SyncDesignerGeneration([string] $projectName, [string] $te
     }
     
     $codeGenConsoleFilePath = Join-Path $codeGenConsoleLatestVersionRootDirectory 'packagedConsoleApp/OBeautifulCode.CodeGen.Console.exe'
-    if (-not (Test-Path $codeGenConsoleFilePath))
-    {
-        throw "Expected to find OBC.CodeGen.Console.exe at ($codeGenConsoleFilePath)."
-    }
+    File-ThrowIfPathMissing -path $codeGenConsoleFilePath -because "Package should contain the OBC.CodeGen.Console.exe at ($codeGenConsoleFilePath)."
 
     &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory
 
@@ -552,11 +537,7 @@ function VisualStudio-PrintPackageReferencesAsDependencies([string] $projectName
     $solutionDirectory = Split-Path $solution.FileName
     $projectDirectory = Join-Path $solutionDirectory $projectName
     $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
-    
-    if (-not (Test-Path $projectDirectory))
-    {
-        throw "Could not find expected path: $projectDirectory."
-    }
+    File-ThrowIfPathMissing -path $projectDirectory
     
     [xml] $packagesConfigXml = Get-Content $packagesConfigFile
     $packagesConfigXml.packages.package | % {
@@ -653,10 +634,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
 
     &$NuGetExeFilePath install $packageIdTemplate -OutputDirectory $stagingTemplatePath -PreRelease
     $templateFilePath = Join-Path $stagingTemplatePath "$projectKind\template.vstemplate"
-    if (-not (Test-Path $templateFilePath))
-    {
-        throw "Test-Path - expected '$packageIdTemplate' to contain a template file ($templateFilePath); it was not found."
-    }
+    File-ThrowIfPathMissing -path $templateFilePath -because "'$packageIdTemplate' should contain the template."
     
     $tokenReplacementList = New-Object 'System.Collections.Generic.Dictionary[String,String]'
     $tokenReplacementList.Add('$projectname$', $projectName)
