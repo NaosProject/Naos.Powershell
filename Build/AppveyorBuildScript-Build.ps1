@@ -46,12 +46,60 @@ $artifactScriptBlock = { param([string] $fileName)
 $createdPackagePaths = New-Object 'System.Collections.Generic.List[String]'
 $informationalVersion = Nuget-CreatePreReleaseSupportedVersion -version $buildVersion -branchName $branchName
 
-$nuSpecFileAnalyzer = Resolve-Path ./Analyzers/Naos.Build.Analyzers.nuspec
-$nuSpecFilePackaging = Resolve-Path ./Packaging/Naos.Build.Packaging.nuspec
-$nuSpecFileConventionsRepoConfig = Resolve-Path ./Conventions/Naos.Build.Conventions.RepoConfig.nuspec
-$nuSpecFileConventionsReSharper = Resolve-Path ./Conventions/Naos.Build.Conventions.ReSharper.nuspec
 
-,$nuSpecFileAnalyzer,$nuSpecFilePackaging,$nuSpecFileConventionsRepoConfig,$nuSpecFileConventionsReSharper | %{
+$nuspecs = New-Object 'System.Collections.Generic.List[String]'
+$nuSpecFileAnalyzer = Resolve-Path ./Analyzers/Naos.Build.Analyzers.nuspec
+$nuspecs.Add($nuSpecFileAnalyzer)
+$nuSpecFilePackaging = Resolve-Path ./Packaging/Naos.Build.Packaging.nuspec
+$nuspecs.Add($nuSpecFilePackaging)
+$nuSpecFileConventionsRepoConfig = Resolve-Path ./Conventions/Naos.Build.Conventions.RepoConfig.nuspec
+$nuspecs.Add($nuSpecFileConventionsRepoConfig)
+$nuSpecFileConventionsReSharper = Resolve-Path ./Conventions/Naos.Build.Conventions.ReSharper.nuspec
+$nuspecs.Add($nuSpecFileConventionsReSharper)
+
+$nuSpecTemplateFilePath = $(ls . -Recurse | ?{$_.Name -eq 'NaosNuSpecTemplate.template-nuspec'}).FullName
+
+$visualStudioProjectTemplateDirectories = ls ./Conventions/VisualStudioProjectTemplates | ?{$_.PSIsContainer} | %{$_.FullName}
+$visualStudioProjectTemplateDirectories | %{
+    $projectTemplateDirectory = $_
+    $projectTemplateDirectoryName = Split-Path $projectTemplateDirectory -Leaf
+    $packageId = "Naos.Build.Conventions.VisualStudioProjectTemplates.$projectTemplateDirectoryName"
+    $nuSpecFilePath = "./VisualStudioProjectTemplate_$projectTemplateDirectoryName.nuspec"
+	$contents = Nuget-GetMinimumNuSpec -id $packageId -version '$version$' -authors $authors -description $description -isDevelopmentDependency $true
+	$contents | Out-File $nuSpecFilePath -Force
+	[xml] $nuSpecFileXml = Get-Content $nuSpecFilePath    
+	[xml] $nuSpecTemplateFileXml = Get-Content $nuSpecTemplateFilePath
+	Nuget-OverrideNuSpec -nuSpecFileXml $nuSpecFileXml -overrideNuSpecFileXml $nuSpecTemplateFileXml -autoPackageId $packageId
+    $filesNode = $nuSpecFileXml.CreateElement('files')
+	
+	$files = ls $projectTemplateDirectory -Recurse | ?{-not $_.PSIsContainer} | ?{-not $_.FullName.EndsWith(".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)")} | ?{-not $_.FullName.EndsWith(".$($nuGetConstants.FileExtensionsWithoutDot.OverrideNuspec)")} | ?{-not $_.FullName.EndsWith(".$($nuGetConstants.FileExtensionsWithoutDot.Package)")}
+
+	$files | %{
+		$fileName = $_.Name
+		$filePath = $_.FullName
+		$relativeFilePathToTemplateDirectory = $filePath.Replace($projectTemplateDirectory, '')
+		if ($relativeFilePathToTemplateDirectory.StartsWith('/') -or $relativeFilePathToTemplateDirectory.StartsWith('\'))
+		{
+			# strip off the leading / or \ because it will mess things up...
+			$relativeFilePathToTemplateDirectory = $relativeFilePathToTemplateDirectory.Substring(1, $relativeFilePathToTemplateDirectory.Length - 1)
+		}
+		
+		$targetPath = Join-Path "$projectTemplateDirectoryName" $relativeFilePathToTemplateDirectory
+		
+		$fileNode = $nuSpecFileXml.CreateElement('file')
+		$fileNode.SetAttribute('src', $filePath)
+		$fileNode.SetAttribute('target', $targetPath)
+		[void]$filesNode.AppendChild($fileNode)
+	}
+
+	[void]$nuSpecFileXml.package.AppendChild($filesNode)	
+	
+	# save updated file
+	$nuSpecFileXml.Save($nuSpecFilePath)
+    $nuspecs.Add($nuSpecFilePath)
+}
+
+$nuspecs | %{
 	&$artifactScriptBlock($_)
 	$packageFile = Nuget-CreatePackageFromNuspec -nuspecFilePath $_ -version $informationalVersion -throwOnError $true -outputDirectory $TempBuildPackagesDir
 	$createdPackagePaths.Add($packageFile)
