@@ -93,8 +93,10 @@ $visualStudioProjectTemplateDirectories | %{
 	}
 
 	[void]$nuSpecFileXml.package.AppendChild($filesNode)	
+    $nuSpecFileXml.package.metadata.Description = "Visual Studio Project Template for the '$projectTemplateDirectoryName' project kind (does not install in a project, contents are held in the '$projectTemplateDirectoryName' folder)."
 	
-	# save updated file
+	# save updated file (can NOT be relative path)
+    $nuSpecFilePath = Resolve-Path $nuSpecFilePath
 	$nuSpecFileXml.Save($nuSpecFilePath)
     $nuspecs.Add($nuSpecFilePath)
 }
