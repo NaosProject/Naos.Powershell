@@ -96,3 +96,21 @@ function File-TryDeleteTempDirectories([string] $prefix = 'Naos.FileTemp', [stri
         }
     }
 }
+
+function File-ThrowIfPathMissing([string] $path, [string] $because)
+{
+    if (-not (Test-Path $path))
+    {
+        $message = "Test-Path - expected path not found ($path)"
+        if ([String]::IsNullOrWhitespace($because))
+        {
+            $message = "$message."
+        }
+        else
+        {
+            $message = "$message; $because"
+        }
+        
+        throw $message
+    }
+}
