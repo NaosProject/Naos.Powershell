@@ -114,3 +114,36 @@ function File-ThrowIfPathMissing([string] $path, [string] $because)
         throw $message
     }
 }
+
+function File-FindReplaceInFileName([string] $directoryPath, [boolean] $recurse = $true, [string] $find, [string] $replace)
+{    
+    File-ThrowIfPathMissing -path $directoryPath
+    $directoryItem = Get-Item $directoryPath
+    if (-not $directoryItem.PSIsContainer)
+    {
+        throw "Must specify a path to a directory; specified path is not a directory ($directoryPath)."
+    }
+
+    $filePathsRaw = $null
+    if ($recurse -eq $true)
+    {
+        $filePathsRaw = ls $directoryPath -Recurse
+    }
+    else
+    {
+        $filePathsRaw = ls $directoryPath
+    }
+    
+    $filePaths = $filePathsRaw | ?{-not $_.PSIsContainer} | %{$_.FullName}
+    $filePaths | %{
+        $filePath = $_
+        $fileDirectoryPath = Split-Path $filePath
+        $fileName = Split-Path $filePath -Leaf
+        $newFileName = $fileName.Replace($find, $replace)
+        if ($fileName -ne $newFileName)
+        {
+            $newFilePath = Join-Path $fileDirectoryPath $newFileName
+            Move-Item $filePath $newFilePath
+        }
+    }
+}
