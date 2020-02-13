@@ -593,7 +593,7 @@ function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, 
     }
 }
 
-function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $projectKind = $null, [boolean] $addTestProject = $true)
+function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $projectKind, [boolean] $addTestProject = $true)
 {
     if ([string]::IsNullOrWhitespace($projectName))
     {
@@ -601,17 +601,6 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     }
     
     $dotSplitProjectName = $projectName.Split('.')
-    if ($projectKind -eq $null)
-    {
-        if ($projectName.Contains('.Feature.'))
-        {
-            $projectKind = 'Feature'
-        }
-        else
-        {
-            $projectKind = $dotSplitProjectName[$dotSplitProjectName.Length - 1]
-        }
-    }
     
     $solution = $DTE.Solution
     $solutionDirectory = Split-Path $solution.FileName
