@@ -554,7 +554,8 @@ function VisualStudio-GetFilePathsFromProject([string] $projectFilePath)
 function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, [string] $projectName = $null)
 {
     $solution = $DTE.Solution
-    
+    $result = $null
+
     if ((-not [String]::IsNullOrWhitespace($projectFilePath)) -and (-not [String]::IsNullOrWhitespace($projectName)))
     {
         throw "Please only specify 'projectFilePath' ($projectFilePath) or 'projectName' ($projectName) but NOT both"
@@ -573,7 +574,7 @@ function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, 
             }
         }
         
-        return $projectByFilePath
+        $result = $projectByFilePath
     }
     elseif ([String]::IsNullOrWhitespace($projectFilePath) -and (-not [String]::IsNullOrWhitespace($projectName)))
     {
@@ -585,12 +586,14 @@ function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, 
             }
         }
         
-        return $projectByName
+        $result = $projectByName
     }
     else
     {
         throw "Unexpected invalid input: 'projectFilePath' ($projectFilePath) or 'projectName' ($projectName)"
     }
+
+    return $result
 }
 
 function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $projectKind, [boolean] $addTestProject = $true)
@@ -710,7 +713,12 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         else
         {
             # Domain project will already be referenced but non-domain test projects will need a reference to their non-test version
-            $testProject.Object.References.AddProject($project)
+			
+			# need to refetch project because $project is null when we get here
+			$project = VisualStudio-GetProjectFromSolution -projectName $projectName
+			
+			Write-Output "Adding reference to project ($project.Name) in test project ($testProject.Name)."
+			$testProject.Object.References.AddProject($project) | Out-Null
         }
     }
 }
