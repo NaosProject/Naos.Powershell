@@ -717,7 +717,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
 			# need to refetch project because $project is null when we get here
 			$project = VisualStudio-GetProjectFromSolution -projectName $projectName
 			
-			Write-Output "Adding reference to project ($project.Name) in test project ($testProject.Name)."
+			Write-Output "Adding reference to project ($($project.ProjectName)) in test project ($($testProject.ProjectName))."
 			$testProject.Object.References.AddProject($project) | Out-Null
         }
     }
