@@ -311,7 +311,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     }
 }
 
-function VisualStudio-SyncDesignerGeneration([string] $projectName, [string] $testProjectName = $null)
+function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testProjectName = $null)
 {    
     if ([string]::IsNullOrWhitespace($projectName))
     {
