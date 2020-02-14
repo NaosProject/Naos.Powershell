@@ -393,6 +393,9 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     
     $projectSouceFiles | ?{ -not $projectFilesFromCsproj.Contains($_) } | %{ $project.ProjectItems.AddFromFile($_) | Out-Null }
     $testProjectSourceFiles | ?{ -not $testProjectFilesFromCsproj.Contains($_) } | %{ $testProject.ProjectItems.AddFromFile($_) | Out-Null }
+    
+    Write-Output "Removing temporary directory ($codeGenTempDirectory)."
+    Remove-Item $codeGenTempDirectory -Recurse -Force
 }
 
 function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
