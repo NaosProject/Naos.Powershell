@@ -334,12 +334,6 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     {
         $testProjectName = $projectName + ".Test"
     }
-    
-    function Reflection-LoadAssembly([string] $assemblyFilePath)
-    {
-        $assemblyBytes = [System.IO.File]::ReadAllBytes($assemblyFilePath)
-        [System.Reflection.Assembly]::Load($assemblyBytes)
-    }
 
     $solution = $DTE.Solution
     $solutionDirectory = Split-Path $solution.FileName
@@ -394,8 +388,8 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     $projectSouceFiles = ls $projectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ?{-not $_.Contains('\obj\')}
     $testProjectSourceFiles = ls $testProjectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ?{-not $_.Contains('\obj\')}
     
-    $projectSouceFiles | ?{ -not $projectFilesFromCsproj.Contains($_) } | %{ $project.ProjectItems.AddFromFile($_) }
-    $testProjectSourceFiles | ?{ -not $testProjectFilesFromCsproj.Contains($_) } | %{ $testProject.ProjectItems.AddFromFile($_) }
+    $projectSouceFiles | ?{ -not $projectFilesFromCsproj.Contains($_) } | %{ $project.ProjectItems.AddFromFile($_) | Out-Null }
+    $testProjectSourceFiles | ?{ -not $testProjectFilesFromCsproj.Contains($_) } | %{ $testProject.ProjectItems.AddFromFile($_) | Out-Null }
 }
 
 function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
