@@ -72,7 +72,7 @@ $visualStudioProjectTemplateDirectories | %{
 	Nuget-OverrideNuSpec -nuSpecFileXml $nuSpecFileXml -overrideNuSpecFileXml $nuSpecTemplateFileXml -autoPackageId $packageId
     $filesNode = $nuSpecFileXml.CreateElement('files')
 	
-	$files = ls $projectTemplateDirectory -Recurse | ?{-not $_.PSIsContainer} | ?{-not $_.FullName.EndsWith(".$($nuGetConstants.FileExtensionsWithoutDot.Nuspec)")} | ?{-not $_.FullName.EndsWith(".$($nuGetConstants.FileExtensionsWithoutDot.OverrideNuspec)")} | ?{-not $_.FullName.EndsWith(".$($nuGetConstants.FileExtensionsWithoutDot.Package)")}
+	$files = ls $projectTemplateDirectory -Recurse | ?{-not $_.PSIsContainer}
 
 	$files | %{
 		$fileName = $_.Name
