@@ -374,16 +374,19 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
         throw "Expected to find an installed package '$codeGenConsolePackageName' at ($codeGenTempDirectory); first entry was empty."
     }
     
+    $project = VisualStudio-GetProjectFromSolution -projectFilePath $projectFilePath
+    $testProject = VisualStudio-GetProjectFromSolution -projectFilePath $testProjectFilePath
+    
+    $projectOutputRelativePath = $project.ConfigurationManager.ActiveConfiguration.Properties.Item('OutputPath').Value.ToString()
+    $projectOutputDirectory = Join-Path $projectDirectory $projectOutputRelativePath
+    
     $codeGenConsoleFilePath = Join-Path $codeGenConsoleLatestVersionRootDirectory 'packagedConsoleApp/OBeautifulCode.CodeGen.Console.exe'
     File-ThrowIfPathMissing -path $codeGenConsoleFilePath -because "Package should contain the OBC.CodeGen.Console.exe at ($codeGenConsoleFilePath)."
 
-    &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory
+    &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory
 
     $projectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $projectFilePath
     $testProjectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $testProjectFilePath
-    
-    $project = VisualStudio-GetProjectFromSolution -projectFilePath $projectFilePath
-    $testProject = VisualStudio-GetProjectFromSolution -projectFilePath $testProjectFilePath
     
     $projectSouceFiles = ls $projectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ?{-not $_.Contains('\obj\')}
     $testProjectSourceFiles = ls $testProjectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ?{-not $_.Contains('\obj\')}
@@ -545,7 +548,7 @@ function VisualStudio-GetFilePathsFromProject([string] $projectFilePath)
      %{Join-Path (Split-Path $projectFilePath) $_}
 }
 
-function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, [string] $projectName = $null)
+function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, [string] $projectName = $null, [boolean] $throwIfNotFound = $true)
 {
     $solution = $DTE.Solution
     $result = $null
@@ -587,7 +590,14 @@ function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, 
         throw "Unexpected invalid input: 'projectFilePath' ($projectFilePath) or 'projectName' ($projectName)"
     }
 
-    return $result
+    if (($throwIfNotFound -eq $true) -and ($result -eq $null))
+    {
+        throw "Could not find project by name ($projectName) or path ($projectFilePath) in solution ($($solution.FullName))."
+    }
+    else
+    {
+        return $result
+    }
 }
 
 function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $projectKind, [boolean] $addTestProject = $true)
@@ -662,7 +672,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     {
         # if there is a domain project then add a reference
         $domainProjectName = "$($dotSplitProjectName[0]).$($dotSplitProjectName[1]).Domain"
-        $domainProject = VisualStudio-GetProjectFromSolution -projectName $domainProjectName
+        $domainProject = VisualStudio-GetProjectFromSolution -projectName $domainProjectName -throwIfNotFound $false
         if ($domainProject -ne $null)
         {
             $project.Object.References.AddProject($domainProject)
