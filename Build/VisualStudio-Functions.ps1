@@ -682,10 +682,17 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $templateFilePath = Join-Path $packageDirectory "$projectKind\template.vstemplate"
     File-ThrowIfPathMissing -path $templateFilePath -because "'$packageIdTemplate' should contain the template."
     
+    $projectNameWithoutTestSuffix = $projectName
+    if ($projectNameWithoutTestSuffix.EndsWith('.Test'))
+    {
+        $projectNameWithoutTestSuffix = $projectNameWithoutTestSuffix.SubString(0, $projectNameWithoutTestSuffix.Length - 5)
+    }
+    
     $tokenReplacementList = New-Object 'System.Collections.Generic.Dictionary[String,String]'
     $tokenReplacementList.Add('[ORGANIZATION]', $dotSplitProjectName[0])
     $tokenReplacementList.Add('[SOLUTION_NAME_WITHOUT_ORGANIZATION_PREFIX]', $dotSplitProjectName[1])
     $tokenReplacementList.Add('[PROJECT_NAME]', $projectName)
+    $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_TEST_SUFFIX]', $projectNameWithoutTestSuffix)
     $tokenReplacementList.Add('[SOLUTION_NAME]', $solutionName)
     $tokenReplacementList.Add('[RECIPE_CONDITIONAL_COMPILATION_SYMBOL]', "$($solutionName.Replace('.', ''))RecipesProject")
 
