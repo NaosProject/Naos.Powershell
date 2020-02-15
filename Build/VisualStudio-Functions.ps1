@@ -81,6 +81,50 @@ function VisualStudio-PreCommit()
     Write-Output ''
     VisualStudio-CheckNuGetPackageDependencies
 
+    Write-Output "Updating recipe NuSpec dependency versions to match packages for all projects in solution '$solutionName' ($solutionFilePath)."
+    $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
+        $projectName = $_.ProjectName
+        $projectFilePath = $_.FullName
+        $projectDirectory = Split-Path $projectFilePath
+        Write-Output "    - '$projectName' ($projectDirectory)"
+        $packagesConfigPath = Join-Path $projectDirectory 'packages.config'
+        [xml] $packagesConfigContents = Get-Content $packagesConfigPath
+        $recipeNuSpecs = ls $projectDirectory -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" -Recurse
+        $recipeNuSpecs | %{
+            $recipeNuSpecPath = $_.FullName
+            [xml] $recipeNuSpecContents = Get-Content $recipeNuSpecPath
+            $recipeNuSpecContents.package.metadata.dependencies.dependency | %{
+                $id = $_.id
+                $version = $_.version
+                $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ?{$_.id -eq $id}
+                if ($matchingPackagesConfigNode -ne $null)
+                {
+                    $newVersion = $_.version
+                    #figure out how to update with the ( [ , etc...
+                    $splitChars = ,'[',']','(',')',','
+                    $splitOutVersion = $version.Split($splitChars, [System.StringSplitOptions]::RemoveEmptyEntries)
+                    $currentVersion = $null
+                    if ($splitOutVersion.Length -eq 1)
+                    {
+                        $currentVersion = $splitOutVersion[0]
+                    }
+                    elseif ($splitOutVersion.Length -eq 2)
+                    {
+                        $currentVersion = $splitOutVersion[1]
+                    }
+                    else
+                    {
+                        throw "Version of package id '$id' ($version) in $packagesConfigPath was not a recognized structure."
+                    }
+                }
+                
+                $_.SetAttribute('version', $version.Replace($currentVersion, $newVersion))
+            }
+            
+            $recipeNuSpecContents.Save($(Resolve-Path $recipeNuSpecPath))
+        }
+    }
+
     Write-Output ''
     Write-Output 'Building Release with Code Analysis'
     Write-Output ''
