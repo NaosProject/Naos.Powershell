@@ -197,3 +197,33 @@ function GitUp()
 
     return $null
 }
+
+function StashChangeOnFileSystem([string] $targetRootPath)
+{
+    <#
+        .SYNOPSIS 
+        Copies the changes to the defined root path using same tree as the source files.
+        .INPUTS
+        No pipeline inputs accepted.
+        .OUTPUTS
+        Returns $null when complete
+    #>
+
+    $filePrefix = '--- a/'
+    $files = git diff | ?{$_.StartsWith($filePrefix)} | %{$_.Replace($filePrefix, '')}
+    $files | %{
+        if (Test-Path $_)
+        {
+            $targetFilePath = $(Join-Path $targetRootPath $_)
+            $targetDirectoryPath = Split-Path $targetFilePath
+            if (-not (Test-Path $targetDirectoryPath))
+            {
+                md $targetDirectoryPath
+            }
+            
+            cp $_ $targetFilePath
+        }
+    }
+
+    return $null
+}
