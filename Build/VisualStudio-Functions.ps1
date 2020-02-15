@@ -99,7 +99,7 @@ function VisualStudio-PreCommit()
                 $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ?{$_.id -eq $id}
                 if ($matchingPackagesConfigNode -ne $null)
                 {
-                    $newVersion = $_.version
+                    $newVersion = $matchingPackagesConfigNode.version
                     #figure out how to update with the ( [ , etc...
                     $splitChars = ,'[',']','(',')',','
                     $splitOutVersion = $version.Split($splitChars, [System.StringSplitOptions]::RemoveEmptyEntries)
@@ -116,9 +116,10 @@ function VisualStudio-PreCommit()
                     {
                         throw "Version of package id '$id' ($version) in $packagesConfigPath was not a recognized structure."
                     }
+                    
+                    $_.SetAttribute('version', $version.Replace($currentVersion, $newVersion))
                 }
                 
-                $_.SetAttribute('version', $version.Replace($currentVersion, $newVersion))
             }
             
             $recipeNuSpecContents.Save($(Resolve-Path $recipeNuSpecPath))
