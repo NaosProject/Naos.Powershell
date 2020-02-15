@@ -122,6 +122,7 @@ function VisualStudio-PreCommit()
                 
             }
             
+            Write-Output "    - Updating one or more versions in ($recipeNuSpecPath)."
             $recipeNuSpecContents.Save($(Resolve-Path $recipeNuSpecPath))
         }
     }
