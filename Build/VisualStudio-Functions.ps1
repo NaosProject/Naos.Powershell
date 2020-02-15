@@ -698,7 +698,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_TEST_SUFFIX]', $projectNameWithoutTestSuffix)
     $tokenReplacementList.Add('[SOLUTION_NAME]', $solutionName)
     $tokenReplacementList.Add('[RECIPE_CONDITIONAL_COMPILATION_SYMBOL]', "$($solutionName.Replace('.', ''))RecipesProject")
-    $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_NAME]', $packageIdTemplate)
+    $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_ID]', $packageIdTemplate)
     $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_VERSION]', $packageTemplateVersion)
 
     $templateFiles = ls $packageDirectory -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
