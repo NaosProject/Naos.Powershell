@@ -682,6 +682,9 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $templateFilePath = Join-Path $packageDirectory "$projectKind\template.vstemplate"
     File-ThrowIfPathMissing -path $templateFilePath -because "'$packageIdTemplate' should contain the template."
     
+    $packageDirectoryName = Split-Path $packageDirectory -Leaf
+    $packageTemplateVersion = $packageDirectoryName.Replace("$packageIdTemplate.", '')
+    
     $projectNameWithoutTestSuffix = $projectName
     if ($projectNameWithoutTestSuffix.EndsWith('.Test'))
     {
@@ -695,6 +698,8 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_TEST_SUFFIX]', $projectNameWithoutTestSuffix)
     $tokenReplacementList.Add('[SOLUTION_NAME]', $solutionName)
     $tokenReplacementList.Add('[RECIPE_CONDITIONAL_COMPILATION_SYMBOL]', "$($solutionName.Replace('.', ''))RecipesProject")
+    $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_NAME]', $packageIdTemplate)
+    $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_VERSION]', $packageTemplateVersion)
 
     $templateFiles = ls $packageDirectory -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
 
