@@ -657,13 +657,15 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     }
     
     $dotSplitProjectName = $projectName.Split('.')
+    $organizationPrefix = $dotSplitProjectName[0]
+    $subsystemName = $dotSplitProjectName[1]
     
     $solution = $DTE.Solution
     $solutionDirectory = Split-Path $solution.FileName
     $solutionName = (Split-Path $solution.FileName -Leaf).Replace('.sln', '')
 
     $projectDirectory = Join-Path $solutionDirectory $projectName
-    $organizationPrefix = $dotSplitProjectName[0]
+    
 
     $packageIdBootstrapper = "$organizationPrefix.Bootstrapper.Recipes.$projectKind"
     $packageIdTemplate = "$organizationPrefix.Build.Conventions.VisualStudioProjectTemplates.$projectKind"
@@ -691,9 +693,11 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $projectNameWithoutTestSuffix = $projectNameWithoutTestSuffix.SubString(0, $projectNameWithoutTestSuffix.Length - 5)
     }
     
+    # Documented on StackOverflow:
+    #    https://stackoverflow.com/questions/60250406/what-replacement-tokens-are-support-for-visual-studio-templates-in-naos-powershe
     $tokenReplacementList = New-Object 'System.Collections.Generic.Dictionary[String,String]'
-    $tokenReplacementList.Add('[ORGANIZATION]', $dotSplitProjectName[0])
-    $tokenReplacementList.Add('[SOLUTION_NAME_WITHOUT_ORGANIZATION_PREFIX]', $dotSplitProjectName[1])
+    $tokenReplacementList.Add('[ORGANIZATION]', $organizationPrefix)
+    $tokenReplacementList.Add('[SUBSYSTEM_NAME]', $subsystemName)
     $tokenReplacementList.Add('[PROJECT_NAME]', $projectName)
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_TEST_SUFFIX]', $projectNameWithoutTestSuffix)
     $tokenReplacementList.Add('[SOLUTION_NAME]', $solutionName)
