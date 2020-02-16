@@ -733,19 +733,19 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
 
     $isDomainProject = $false
     $project = $solution.AddFromTemplate($templateFilePath, $projectDirectory, $projectName, $false)
-    if (-not $projectName.EndsWith('.Domain'))
+    if ($projectKind -eq 'Domain')
+    {
+        $isDomainProject = $true
+    }
+    else
     {
         # if there is a domain project then add a reference
-        $domainProjectName = "$($dotSplitProjectName[0]).$($dotSplitProjectName[1]).Domain"
+        $domainProjectName = "$organizationPrefix.$subsystemName.Domain"
         $domainProject = VisualStudio-GetProjectFromSolution -projectName $domainProjectName -throwIfNotFound $false
         if ($domainProject -ne $null)
         {
             $project.Object.References.AddProject($domainProject)
         }
-    }
-    else
-    {
-        $isDomainProject = $true
     }
 
     if (-not $projectName.Contains('Bootstrapper'))
