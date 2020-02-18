@@ -252,7 +252,18 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $blacklistFiles | %{
             $blacklistFile = $_
             $blacklistFileContents = Get-Content $blacklistFile
-            $blacklistLines = $blacklistFileContents.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries)
+            $blacklistLines = New-Object 'System.Collections.Generic.List[String]'
+            if (-not [String]::IsNullOrWhitespace($blacklistFileContents))
+            {
+                $blacklistFileContents.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries) | %{
+                    $blacklistStagingLine = $_
+                    if (-not [String]::IsNullOrWhitespace($blacklistStagingLine))
+                    {
+                        $blacklistLines.Add($blacklistStagingLine)
+                    }
+                }
+            }
+
             $blacklist = New-Object 'System.Collections.Generic.Dictionary[String,String]'
             $blacklistLines | %{
                 $blacklistLine = $_
