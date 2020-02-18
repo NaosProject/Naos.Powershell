@@ -670,16 +670,17 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $packageIdBootstrapper = "$organizationPrefix.Bootstrapper.Recipes.$projectKind"
     $packageIdTemplate = "$organizationPrefix.Build.Conventions.VisualStudioProjectTemplates.$projectKind"
 
-    # Act
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-    $tempDirectoryPrefix = "Naos.VsAddProject"
+    # used to be 'Naos.VsAddProject', but caused a PathTooLongException with long $organizationPrefix and/or $projectKind
+    $tempDirectoryPrefix = "Naos.Vs"
     
     # Files get locked so try and delete residue of previous runs.
     File-TryDeleteTempDirectories -prefix $tempDirectoryPrefix    
     $tempDirectory = File-CreateTempDirectory -prefix $tempDirectoryPrefix
 
     &$NuGetExeFilePath install $packageIdTemplate -OutputDirectory $tempDirectory -PreRelease
+
     $packageDirectory = (ls $tempDirectory).FullName # we can only do this b/c there are no dependencies and it will revert to the directory information
     $templateFilePath = Join-Path $packageDirectory "$projectKind\template.vstemplate"
     File-ThrowIfPathMissing -path $templateFilePath -because "'$packageIdTemplate' should contain the template."
