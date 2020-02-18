@@ -786,7 +786,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
             }
             else
             {
-                $bsonProjectName = $bsonProjectName + ".$bsonSuffix"
+                $bsonProjectName = $bsonProjectName + $bsonSuffix
             }
 
             $jsonProjectName = $projectName
@@ -796,7 +796,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
             }
             else
             {
-                $jsonProjectName = $jsonProjectName + ".$jsonSuffix"
+                $jsonProjectName = $jsonProjectName + $jsonSuffix
             }
             VisualStudio-AddNewProjectAndConfigure -projectName $bsonProjectName -projectKind 'Serialization.Bson' -addTestProject $false
             VisualStudio-AddNewProjectAndConfigure -projectName $jsonProjectName -projectKind 'Serialization.Json' -addTestProject $false
