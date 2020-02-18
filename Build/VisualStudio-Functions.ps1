@@ -405,7 +405,7 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     File-ThrowIfPathMissing -path $projectFilePath
     File-ThrowIfPathMissing -path $testProjectFilePath
 
-    $codeGenTempDirectory = Join-Path $([System.IO.Path]::GetTempPath()) 'ObcCodeGenNuGetStaging'
+    $codeGenTempDirectory = File-CreateTempDirectory -prefix 'ObcCodeGen'
     $codeGenConsolePackageName = 'OBeautifulCode.CodeGen.Console'
     &$NuGetExeFilePath install $codeGenConsolePackageName -OutputDirectory $codeGenTempDirectory
     $codeGenConsoleDirObjects = ls $codeGenTempDirectory -Filter "$codeGenConsolePackageName*"
@@ -687,7 +687,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tempDirectoryPrefix = "Naos.Vs"
     
     # Files get locked so try and delete residue of previous runs.
-    File-TryDeleteTempDirectories -prefix $tempDirectoryPrefix    
+    File-TryDeleteTempDirectories -prefix $tempDirectoryPrefix
     $tempDirectory = File-CreateTempDirectory -prefix $tempDirectoryPrefix
 
     &$NuGetExeFilePath install $packageIdTemplate -OutputDirectory $tempDirectory -PreRelease
