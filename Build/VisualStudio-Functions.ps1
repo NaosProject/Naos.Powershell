@@ -693,12 +693,19 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $projectNameWithoutTestSuffix = $projectNameWithoutTestSuffix.SubString(0, $projectNameWithoutTestSuffix.Length - 5)
     }
     
+    $projectNameWithoutSerializationSuffix = $projectName
+    if ($projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Bson') -or $projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Json'))
+    {
+        $projectNameWithoutSerializationSuffix = $projectNameWithoutSerializationSuffix.SubString(0, $projectNameWithoutSerializationSuffix.Length - 19)
+    }
+    
     # Documented on StackOverflow:
     #    https://stackoverflow.com/questions/60250406/what-replacement-tokens-are-support-for-visual-studio-templates-in-naos-powershe
     $tokenReplacementList = New-Object 'System.Collections.Generic.Dictionary[String,String]'
     $tokenReplacementList.Add('[ORGANIZATION]', $organizationPrefix)
     $tokenReplacementList.Add('[SUBSYSTEM_NAME]', $subsystemName)
     $tokenReplacementList.Add('[PROJECT_NAME]', $projectName)
+    $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_SERIALIZATION_SUFFIX]', $projectNameWithoutSerializationSuffix)
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_TEST_SUFFIX]', $projectNameWithoutTestSuffix)
     $tokenReplacementList.Add('[SOLUTION_NAME]', $solutionName)
     $tokenReplacementList.Add('[RECIPE_CONDITIONAL_COMPILATION_SYMBOL]', "$($solutionName.Replace('.', ''))RecipesProject")
