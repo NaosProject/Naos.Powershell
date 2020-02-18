@@ -28,7 +28,7 @@ function VisualStudio-PreCommit()
             $solutionItemsProject = $solution.AddSolutionFolder($solutionItemsFolderName)
         }
 
-        $solutionItemsProject.ProjectItems.AddFromFile($filePath)
+        $solutionItemsProject.ProjectItems.AddFromFile($filePath) | Out-Null
     }
     Write-Output ''
     Write-Output ''
