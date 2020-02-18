@@ -231,7 +231,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $bootstrapperPackages = $packagesConfigXml.packages.package | ?{$_.Id.StartsWith($bootstrapperPrefix)}
         
         Write-Output "    - Confirm at least one bootstrapper package is installed, prefixed by '$bootstrapperPrefix'."
-        if ($bootstrapperPackages.Count -eq 0)
+        if ((-not $projectName.StartsWith($bootstrapperPrefix)) -and ($bootstrapperPackages.Count -eq 0))
         {
             throw "      Did not find any 'bootstrapper' packages in ($packagesConfigFile)."
         }
