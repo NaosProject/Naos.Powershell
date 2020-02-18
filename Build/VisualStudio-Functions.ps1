@@ -752,6 +752,8 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $domainProject = VisualStudio-GetProjectFromSolution -projectName $domainProjectName -throwIfNotFound $false
         if ($domainProject -ne $null)
         {
+			# need to refetch project because $project is null when we get here
+			$project = VisualStudio-GetProjectFromSolution -projectName $projectName
             $project.Object.References.AddProject($domainProject) | Out-Null
         }
     }
