@@ -408,6 +408,11 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     $codeGenTempDirectory = File-CreateTempDirectory -prefix 'ObcCodeGen'
     $codeGenConsolePackageName = 'OBeautifulCode.CodeGen.Console'
     &$NuGetExeFilePath install $codeGenConsolePackageName -OutputDirectory $codeGenTempDirectory
+    if ($lastexitcode -ne 0)
+    {
+        throw "Failure running exe."
+    }
+    
     $codeGenConsoleDirObjects = ls $codeGenTempDirectory -Filter "$codeGenConsolePackageName*"
     $codeGenConsoleDirPaths = New-Object 'System.Collections.Generic.List[String]'
     if ($codeGenConsoleDirObjects.PSIsContainer)
@@ -441,6 +446,10 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     File-ThrowIfPathMissing -path $codeGenConsoleFilePath -because "Package should contain the OBC.CodeGen.Console.exe at ($codeGenConsoleFilePath)."
 
     &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory
+    if ($lastexitcode -ne 0)
+    {
+        throw "Failure running exe."
+    }
 
     $projectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $projectFilePath
     $testProjectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $testProjectFilePath
@@ -532,6 +541,12 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
     else{
         &$NuGetExeFilePath install $repoConfigPackageId -OutputDirectory $tempDirectory | Out-File $nugetLog 2>&1
     }
+
+    if ($lastexitcode -ne 0)
+    {
+        throw "Failure running exe."
+    }
+    
     Write-Output " - Package: $repoConfigPackageId"
     Write-Output " - Location: $tempDirectory"
     Write-Output " - Log: $nugetLog"
@@ -691,6 +706,10 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tempDirectory = File-CreateTempDirectory -prefix $tempDirectoryPrefix
 
     &$NuGetExeFilePath install $packageIdTemplate -OutputDirectory $tempDirectory -PreRelease
+    if ($lastexitcode -ne 0)
+    {
+        throw "Failure running exe."
+    }
 
     $packageDirectory = (ls $tempDirectory).FullName # we can only do this b/c there are no dependencies and it will revert to the directory information
     $templateFilePath = Join-Path $packageDirectory "$projectKind\template.vstemplate"
