@@ -773,10 +773,30 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         
         if ($isDomainProject)
         {
+            $bsonSuffix = '.Serialization.Bson'
+            $jsonSuffix = '.Serialization.Json'
+            $domainSuffix = '.Domain'
+            
             # Domain projects also need a reference to the serialization configuration projects
-            $bsonProjectName = $projectByName.Replace('.Domain', '.Serialization.Bson')
-            $jsonProjectName = $projectByName.Replace('.Domain', '.Serialization.Json')
+            $bsonProjectName = $projectName
+            if ($bsonProjectName.EndsWith($domainSuffix))
+            {
+                $bsonProjectName = $bsonProjectName.Replace($domainSuffix, $bsonSuffix)
+            }
+            else
+            {
+                $bsonProjectName = $bsonProjectName + ".$bsonSuffix"
+            }
 
+            $jsonProjectName = $projectName
+            if ($jsonProjectName.EndsWith($domainSuffix))
+            {
+                $jsonProjectName = $jsonProjectName.Replace($domainSuffix, $jsonSuffix)
+            }
+            else
+            {
+                $jsonProjectName = $jsonProjectName + ".$jsonSuffix"
+            }
             VisualStudio-AddNewProjectAndConfigure -projectName $bsonProjectName -projectKind 'Serialization.Bson' -addTestProject $false
             VisualStudio-AddNewProjectAndConfigure -projectName $jsonProjectName -projectKind 'Serialization.Json' -addTestProject $false
 
