@@ -410,7 +410,7 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     &$NuGetExeFilePath install $codeGenConsolePackageName -OutputDirectory $codeGenTempDirectory
     if ($lastexitcode -ne 0)
     {
-        throw "Failure running exe."
+        throw "Failure running NuGet.exe to download latest '$codeGenConsolePackageName'."
     }
     
     $codeGenConsoleDirObjects = ls $codeGenTempDirectory -Filter "$codeGenConsolePackageName*"
@@ -448,7 +448,7 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory
     if ($lastexitcode -ne 0)
     {
-        throw "Failure running exe."
+        throw "Failure running: $codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory"
     }
 
     $projectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $projectFilePath
@@ -544,7 +544,7 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
 
     if ($lastexitcode -ne 0)
     {
-        throw "Failure running exe."
+        throw "Failure running NuGet.exe to download latest '$repoConfigPackageId'."
     }
     
     Write-Output " - Package: $repoConfigPackageId"
@@ -708,7 +708,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     &$NuGetExeFilePath install $packageIdTemplate -OutputDirectory $tempDirectory -PreRelease
     if ($lastexitcode -ne 0)
     {
-        throw "Failure running exe."
+        throw "Failure running NuGet.exe to download latest '$packageIdTemplate'."
     }
 
     $packageDirectory = (ls $tempDirectory).FullName # we can only do this b/c there are no dependencies and it will revert to the directory information
