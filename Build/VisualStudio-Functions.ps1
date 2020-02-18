@@ -752,7 +752,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $domainProject = VisualStudio-GetProjectFromSolution -projectName $domainProjectName -throwIfNotFound $false
         if ($domainProject -ne $null)
         {
-            $project.Object.References.AddProject($domainProject)
+            $project.Object.References.AddProject($domainProject) | Out-Null
         }
     }
 
@@ -802,10 +802,10 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
             VisualStudio-AddNewProjectAndConfigure -projectName $jsonProjectName -projectKind 'Serialization.Json' -addTestProject $false
 
             $bsonProject = VisualStudio-GetProjectFromSolution -projectName $bsonProjectName
-            $testProject.Object.References.AddProject($bsonProject)
+            $testProject.Object.References.AddProject($bsonProject) | Out-Null
 
             $jsonProject = VisualStudio-GetProjectFromSolution -projectName $jsonProjectName
-            $testProject.Object.References.AddProject($jsonProject)
+            $testProject.Object.References.AddProject($jsonProject) | Out-Null
         }
         else
         {
