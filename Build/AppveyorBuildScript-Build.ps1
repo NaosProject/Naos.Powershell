@@ -43,6 +43,7 @@ $artifactScriptBlock = { param([string] $fileName)
 #######################################################################
 ###     Pack and push build                                         ###
 #######################################################################
+$authors = 'Naos Project'
 $createdPackagePaths = New-Object 'System.Collections.Generic.List[String]'
 $informationalVersion = Nuget-CreatePreReleaseSupportedVersion -version $buildVersion -branchName $branchName
 
