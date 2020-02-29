@@ -598,22 +598,72 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
     Write-Output "################################################################################################"
 }
 
-function VisualStudio-PrintPackageReferencesAsDependencies([string] $projectName)
+function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $null)
 {
-    if ([string]::IsNullOrWhitespace($projectName))
+    if (($projectName -ne $null) -and ($projectName.StartsWith('.\')))
     {
-        throw "Invalid projectName: '$projectName'."
+        # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
+        $projectName = $projectName.SubString(2, $projectName.Length - 2)
     }
     
+    Write-Output ''
+    # Arrange
     $solution = $DTE.Solution
-    $solutionDirectory = Split-Path $solution.FileName
-    $projectDirectory = Join-Path $solutionDirectory $projectName
-    $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
-    File-ThrowIfPathMissing -path $projectDirectory
+    $solutionFilePath = $solution.FileName
+    $solutionName = Split-Path $solution.FileName -Leaf
+    $organizationPrefix = $solutionName.Split('.')[0]
+    $solutionDirectory = Split-Path $solutionFilePath
+
+	$projectDirectories = New-Object 'System.Collections.Generic.List[String]'
+    if ([String]::IsNullOrWhitespace($projectName))
+    {
+        Write-Output "Identified following projects to run on from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
+        Write-Output ''
+        $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
+            $projectName = $_.ProjectName
+            $projectFilePath = $_.FullName
+            $projectDirectory = Split-Path $projectFilePath
+            $projectDirectories.Add($projectDirectory)
+            Write-Output "    - '$projectName' ($projectDirectory)"
+        }
+    }
+    else
+    {
+        $projectDirectory = Join-Path $solutionDirectory $projectName
+        $projectDirectories.Add($projectDirectory)
+        Write-Output "Running on the following specified project from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
+        Write-Output ''
+        Write-Output "    - '$projectName' ($projectDirectory)"
+    }
     
-    [xml] $packagesConfigXml = Get-Content $packagesConfigFile
-    $packagesConfigXml.packages.package | % {
-        Write-Host "<dependency id=`"$($_.Id)`" version=`"$($_.Version)`" />"
+    $projectDirectories | %{
+        $projectDirectory = $_
+        $organizationPrefix = (Split-Path $projectDirectory -Leaf).Split('.')[0]
+        $packagesConfigFile = Join-Path $projectDirectory 'packages.config'
+        File-ThrowIfPathMissing -path $projectDirectory
+        
+        [xml] $packagesConfigXml = Get-Content $packagesConfigFile
+        
+        $recipeNuSpecFilePath = (ls $projectDirectory -Filter '*.recipe-nuspec').FullName
+        
+        [xml] $recipeNuSpecXml = Get-Content $recipeNuSpecFilePath
+        $deps = $recipeNuSpecXml.package.metadata.dependencies
+        $deps.RemoveAll()
+        
+        $packagesConfigXml.packages.package | % {
+            # Write-Host "<dependency id=`"$($_.Id)`" version=`"$($_.Version)`" />"
+            $newElement = $recipeNuSpecXml.CreateElement('dependency')
+            $newElement.SetAttribute('id', $_.Id)
+            $newElement.SetAttribute('version', $_.Version)
+            if ((-not $_.Id.StartsWith('OBeautifulCode')) -and (-not $_.Id.StartsWith('Naos')) -and (-not $_.Id.StartsWith($organizationPrefix)))
+            {
+                $newElement.SetAttribute('allowedVersions', "[$($_.Version)]")
+            }
+            
+            [void]$deps.AppendChild($newElement)
+        }
+        
+        $recipeNuSpecXml.Save($recipeNuSpecFilePath)
     }
 }
 
