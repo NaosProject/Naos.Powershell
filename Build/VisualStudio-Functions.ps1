@@ -619,7 +619,7 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
     {
         Write-Output "Identified following projects to run on from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
         Write-Output ''
-        $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
+        $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | ?{$_.ProjectName.Contains('.Bootstrapper.')} | %{
             $projectName = $_.ProjectName
             $projectFilePath = $_.FullName
             $projectDirectory = Split-Path $projectFilePath
