@@ -304,7 +304,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		$isConsoleApp = MsBuild-IsConsoleApp -projectFilePath $projFilePath
 		$isLibrary = (MsBuild-IsLibrary -projectFilePath $projFilePath)
 		$isNonTestLibrary = ($isLibrary -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj') -or (Get-Item $projFilePath).name.EndsWith('Tests.csproj') -or (Get-Item $projFilePath).name.EndsWith('Tests.vbproj'))))
-		$isNonRecipesLibrary = ($isLibrary -and (-not ((Get-Item $projFilePath).name.EndsWith('Recipe.csproj') -or (Get-Item $projFilePath).name.EndsWith('Recipe.vbproj') -or (Get-Item $projFilePath).name.EndsWith('Recipes.csproj') -or (Get-Item $projFilePath).name.EndsWith('Recipes.vbproj'))))
+		$isNonRecipesLibrary = ($isLibrary -and (-not ((Get-Item $projFilePath).name.Contains('.Recipe.') -or (Get-Item $projFilePath).name.Contains('.Recipes.'))))
 		$isLibraryToAutoPublishToNuget = $isLibrary -and $isNonTestLibrary -and $isNonRecipesLibrary
 		
 		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
