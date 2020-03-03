@@ -647,20 +647,61 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
         $recipeNuSpecFilePath = (ls $projectDirectory -Filter '*.recipe-nuspec').FullName
         
         [xml] $recipeNuSpecXml = Get-Content $recipeNuSpecFilePath
-        $deps = $recipeNuSpecXml.package.metadata.dependencies
-        $deps.RemoveAll()
+
+        $deps = $null
+        if ($recipeNuSpecXml.package.metadata.dependencies.dependency -eq $null)
+        {
+            throw "Empty 'dependencies' node is not supported yet, please add a dummy entry (e.g. <dependency id=`"JUST TO MAKE THE XML WORK`" version=`"1.0.0.0`" />) to the 'package->metadata->dependencies' node in ($recipeNuSpecFilePath) and retry."
+        }
+        else
+        {
+            $deps = $recipeNuSpecXml.package.metadata.dependencies
+        }
         
-        $packagesConfigXml.packages.package | % {
-            # Write-Host "<dependency id=`"$($_.Id)`" version=`"$($_.Version)`" />"
-            $newElement = $recipeNuSpecXml.CreateElement('dependency')
-            $newElement.SetAttribute('id', $_.Id)
-            $newElement.SetAttribute('version', $_.Version)
-            if ((-not $_.Id.StartsWith('OBeautifulCode')) -and (-not $_.Id.StartsWith('Naos')) -and (-not $_.Id.StartsWith($organizationPrefix)))
-            {
-                $newElement.SetAttribute('allowedVersions', "[$($_.Version)]")
+        $deps.RemoveAll()
+
+        $projectFilePath = (ls $projectDirectory -Filter *.csproj).FullName
+        $projectReferences = MsBuild-GetProjectReferences -projectFilePath $projectFilePath -recursive $true
+        $referencedPackagesConfig = New-Object 'System.Collections.Generic.List[String]'
+        $projectReferences | %{
+            $refProjectFilePath = $_
+            $refProjectDirectory = Split-Path $refProjectFilePath
+            
+            # Add packages to skip later on since NuGet will pick up the dependencies.
+            $refPackagesConfigFilePath = Join-Path $refProjectDirectory 'packages.config'
+            [xml] $refPackagesConfigXml = Get-Content $refPackagesConfigFilePath
+            $refPackagesConfigXml.packages.package | %{
+                $referencedPackagesConfig.Add($_.Id)
             }
             
-            [void]$deps.AppendChild($newElement)
+            # Add a reference to the dependent bootstrapper from the project reference
+            $refRecipeNuSpecFilePath = (ls $refProjectDirectory -Filter *.recipe-nuspec).FullName
+            [xml] $refRecipeNuSpecXml = Get-Content $refRecipeNuSpecFilePath
+            $refDependencyId = $refRecipeNuSpecXml.package.metadata.id
+            $refDependencyElement = $recipeNuSpecXml.CreateElement('dependency')
+            $refDependencyElement.SetAttribute('id', $refDependencyId)
+            $refDependencyElement.SetAttribute('version', '$version$')
+            [void]$deps.AppendChild($refDependencyElement)
+        }
+        
+        $packagesConfigXml.packages.package | % {
+            # Write-Output "<dependency id=`"$($_.Id)`" version=`"$($_.Version)`" />"
+            $newElement = $recipeNuSpecXml.CreateElement('dependency')
+            $newElement.SetAttribute('id', $_.Id)
+            
+            $versionToSet = $_.Version
+            if ((-not $_.Id.StartsWith('OBeautifulCode')) -and (-not $_.Id.StartsWith('Naos')) -and (-not $_.Id.StartsWith($organizationPrefix)))
+            {
+                $versionToSet = "[$($_.Version)]"
+            }
+
+            $newElement.SetAttribute('version', $versionToSet)
+
+            # do not use add anything that is already covered via a project reference dependency
+            if (-not $referencedPackagesConfig.Contains($_.Id))
+            {
+                [void]$deps.AppendChild($newElement)
+            }
         }
         
         $recipeNuSpecXml.Save($recipeNuSpecFilePath)
