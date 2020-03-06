@@ -8,7 +8,7 @@ $visualStudioConstants = @{
 	}
 }
 
-function VisualStudio-PreCommit()
+function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true)
 {
     $packagesConfigFileName = 'packages.config'
     $solution = $DTE.Solution
@@ -35,7 +35,14 @@ function VisualStudio-PreCommit()
 
     Write-Output "Running RepoConfig on ($solutionDirectory)."
     Write-Output ''
-    VisualStudio-RepoConfig
+    if ($runRepoConfig)
+    {
+        VisualStudio-RepoConfig
+    }
+    else
+    {
+        Write-Output ' ! Skipping because (runRepoConfig -eq $false)'
+    }
     Write-Output ''
     Write-Output ''
 
@@ -70,7 +77,14 @@ function VisualStudio-PreCommit()
             if ($packageShouldBeAutoUpdated)
             {
                 Write-Output "        - Package '$packageId' should be checked for updates."
-                Install-Package -Id $packageId -ProjectName $projectName
+                if ($updateCorePackages)
+                {
+                    Install-Package -Id $packageId -ProjectName $projectName
+                }
+                else
+                {
+                    Write-Output '        ! Skipping because (updateCorePackages -eq $false)'
+                }
                 Write-Output ''
             }
         }
@@ -130,13 +144,20 @@ function VisualStudio-PreCommit()
     Write-Output ''
     Write-Output 'Building Release with Code Analysis'
     Write-Output ''
-	$msBuildReleasePropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
-	$msBuildReleasePropertiesDictionary.Add('Configuration', 'release')
-	$msBuildReleasePropertiesDictionary.Add('DebugType', 'pdbonly')
-	$msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $true)
-	$msBuildReleasePropertiesDictionary.Add('RunCodeAnalysis', $true)
-	$msBuildReleasePropertiesDictionary.Add('CodeAnalysisTreatWarningsAsErrors', $true)
-	MsBuild-Custom -customBuildFilePath $solutionFilePath -target 'Build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary
+    if ($runReleaseBuild)
+    {
+        $msBuildReleasePropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
+        $msBuildReleasePropertiesDictionary.Add('Configuration', 'release')
+        $msBuildReleasePropertiesDictionary.Add('DebugType', 'pdbonly')
+        $msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $true)
+        $msBuildReleasePropertiesDictionary.Add('RunCodeAnalysis', $true)
+        $msBuildReleasePropertiesDictionary.Add('CodeAnalysisTreatWarningsAsErrors', $true)
+        MsBuild-Custom -customBuildFilePath $solutionFilePath -target 'Build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary
+    }
+    else
+    {
+        Write-Output '! Skipping because (runReleaseBuild -eq $false)'
+    }
 
     Write-Output ''
     Write-Output 'Finished PreCommit checks, all is good.'
@@ -184,6 +205,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     
     $regexPrefixToken = 'regex:'
 
+    $packageIdToVersionListMap = New-Object 'System.Collections.Generic.Dictionary[String,Object]'
     $projectDirectories | %{
         $projectDirectory = $_
         File-ThrowIfPathMissing -path $projectDirectory
@@ -199,6 +221,20 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $packageIdsInProject = New-Object 'System.Collections.Generic.List[String]'
         $packagesConfigXml.packages.package | %{
             $packageIdsInProject.Add($_.Id)
+            if ($packageIdToVersionListMap.ContainsKey($_.Id))
+            {
+                $versionList = $packageIdToVersionListMap[$_.Id]
+                if (-not $versionList.Contains($_.Version))
+                {
+                    $versionList.Add($_.Version)
+                }
+            }
+            else
+            {
+                $newVersionList = New-Object 'System.Collections.Generic.List[String]'
+                $newVersionList.Add($_.Version)
+                $packageIdToVersionListMap.Add($_.Id, $newVersionList)
+            }
         }
         
         $projectFilePath = (ls $projectDirectory -filter '*.csproj').FullName
@@ -207,7 +243,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $projectPackageFilePath = Join-Path (Split-Path $_) $packagesConfigFileName
             [xml] $projectPackageFileXml = Get-Content $projectPackageFilePath
             $projectPackageFileXml.packages.package | %{
-                if (-not $_.Id.Contains('.Recipe'))
+                if ($_.developmentDependency -ne $true)
                 {
                     $expectedPackageIdsFromProjectReferences.Add($_.Id)
                 }
@@ -223,7 +259,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $expectedPackageIdsFromProjectReferences | %{
             if (-not $packageIdsInProject.Contains($_))
             {
-                throw "    Expected a NuGet reference to $_"
+                throw "    Expected a NuGet reference to $_; run Install-Package -Id $_ -ProjectName $projectName"
             }
         }
         
@@ -328,7 +364,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
                         }
                         else
                         {
-                            throw "          Installed package '$packageId' matches blacklist entry '$blacklistKey'."
+                            throw "          Installed package '$packageId' matches blacklist entry '$blacklistKey'; run Uninstall-Package -Id $packageId -ProjectName $projectName"
                         }
                     }
                 }
@@ -361,11 +397,19 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
                 }
             }
         }
-        
-        Write-Output ''
-        Write-Output 'Completed NuGet Package Dependency checks - no issues found.'
-        Write-Output ''
     }
+    
+    $packageIdToVersionListMap.Keys | %{
+        $value = $packageIdToVersionListMap[$_]
+        if ($value.Count -gt 1)
+        {
+            throw "Packages must all be the same verison within the solution; make the version of '$_' consistent across projects."
+        }
+    }
+        
+    Write-Output ''
+    Write-Output 'Completed NuGet Package Dependency checks - no issues found.'
+    Write-Output ''
 }
 
 function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testProjectName = $null)
@@ -662,9 +706,19 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
 
         $projectFilePath = (ls $projectDirectory -Filter *.csproj).FullName
         $projectReferences = MsBuild-GetProjectReferences -projectFilePath $projectFilePath -recursive $true
+        if ($projectFilePath.Contains('.Core.') -and $projectReferences.Count -ne 0)
+        {
+            throw "'Core' bootstrappers cannot reference other bootstrappers; '$projectFilePath' has project references, remove and try again."
+        }
+            
         $referencedPackagesConfig = New-Object 'System.Collections.Generic.List[String]'
         $projectReferences | %{
             $refProjectFilePath = $_
+            if (-not $refProjectFilePath.Contains('.Core.'))
+            {
+                throw "Bootstrappers cannot reference other NON-CORE bootstrappers; '$projectFilePath' references '$refProjectFilePath', remove and try again."
+            }
+        
             $refProjectDirectory = Split-Path $refProjectFilePath
             
             # Add packages to skip later on since NuGet will pick up the dependencies.
