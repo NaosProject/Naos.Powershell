@@ -8,159 +8,253 @@ $visualStudioConstants = @{
 	}
 }
 
-function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true)
+function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true, [boolean] $keepTrying = $false)
 {
-    $packagesConfigFileName = 'packages.config'
-    $solution = $DTE.Solution
-    $solutionFilePath = $solution.FileName
-    $solutionDirectory = Split-Path $solutionFilePath
-    $solutionName = Split-Path $solution.FileName -Leaf
-    $organizationPrefix = $solutionName.Split('.')[0]
-    Write-Output "Adding any root files in ($solutionDirectory) as 'Solution Items'."
-    Write-Output ''
-    $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.Contains('sln'))  } | %{$_.FullName}
-    $repoRootFiles | %{
-        $filePath = $_
-        $solutionItemsFolderName = 'Solution Items'
-        $solutionItemsProject = $solution.Projects | ?{$_.ProjectName -eq $solutionItemsFolderName}
-        if ($solutionItemsProject -eq $null)
+    do
+    {
+        try
         {
-            $solutionItemsProject = $solution.AddSolutionFolder($solutionItemsFolderName)
-        }
+            $packagesConfigFileName = 'packages.config'
+            $solution = $DTE.Solution
+            $solutionFilePath = $solution.FileName
+            $solutionDirectory = Split-Path $solutionFilePath
+            $solutionName = Split-Path $solution.FileName -Leaf
+            $organizationPrefix = $solutionName.Split('.')[0]
+            Write-Output "Adding any root files in ($solutionDirectory) as 'Solution Items'."
+            Write-Output ''
+            $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.Contains('sln'))  } | %{$_.FullName}
+            $repoRootFiles | %{
+                $filePath = $_
+                $solutionItemsFolderName = 'Solution Items'
+                $solutionItemsProject = $solution.Projects | ?{$_.ProjectName -eq $solutionItemsFolderName}
+                if ($solutionItemsProject -eq $null)
+                {
+                    $solutionItemsProject = $solution.AddSolutionFolder($solutionItemsFolderName)
+                }
 
-        $solutionItemsProject.ProjectItems.AddFromFile($filePath) | Out-Null
-    }
-    Write-Output ''
-    Write-Output ''
+                $solutionItemsProject.ProjectItems.AddFromFile($filePath) | Out-Null
+            }
+            Write-Output ''
+            Write-Output ''
 
-    Write-Output "Running RepoConfig on ($solutionDirectory)."
-    Write-Output ''
-    if ($runRepoConfig)
-    {
-        VisualStudio-RepoConfig
-    }
-    else
-    {
-        Write-Output ' ! Skipping because (runRepoConfig -eq $false)'
-    }
-    Write-Output ''
-    Write-Output ''
-
-    Write-Output "Updating critical packages for all projects in solution '$solutionName' ($solutionFilePath)."
-    Write-Output ''
-    $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
-        $projectName = $_.ProjectName
-        $projectFilePath = $_.FullName
-        $projectDirectory = Split-Path $projectFilePath
-        Write-Output "    - '$projectName' ($projectDirectory)"
-        $packagesConfigFile = Join-Path $projectDirectory $packagesConfigFileName
-        [xml] $packagesConfigXml = Get-Content $packagesConfigFile
-        $packagesConfigXml.packages.package | %{
-            $packageId = $_.Id
-            $packageShouldBeAutoUpdated = $false
-            if ($packageId.StartsWith($organizationPrefix))
+            Write-Output "Running RepoConfig on ($solutionDirectory)."
+            Write-Output ''
+            if ($runRepoConfig)
             {
-                if ($packageId -eq "$organizationPrefix.Build.Analyzers")
-                {
-                    $packageShouldBeAutoUpdated = $true
+                VisualStudio-RepoConfig
+            }
+            else
+            {
+                Write-Output ' ! Skipping because (runRepoConfig -eq $false)'
+            }
+            Write-Output ''
+            Write-Output ''
+
+            Write-Output "Updating critical packages for all projects in solution '$solutionName' ($solutionFilePath)."
+            Write-Output ''
+            $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
+                $projectName = $_.ProjectName
+                $projectFilePath = $_.FullName
+                $projectDirectory = Split-Path $projectFilePath
+                Write-Output "    - '$projectName' ($projectDirectory)"
+                $packagesConfigFile = Join-Path $projectDirectory $packagesConfigFileName
+                [xml] $packagesConfigXml = Get-Content $packagesConfigFile
+                $packagesConfigXml.packages.package | %{
+                    $packageId = $_.Id
+                    $packageShouldBeAutoUpdated = $false
+                    if ($packageId.StartsWith($organizationPrefix))
+                    {
+                        if ($packageId -eq "$organizationPrefix.Build.Analyzers")
+                        {
+                            $packageShouldBeAutoUpdated = $true
+                        }
+                        if ($packageId -eq "$organizationPrefix.Build.Conventions.ReSharper")
+                        {
+                            $packageShouldBeAutoUpdated = $true
+                        }
+                        if ($packageId.StartsWith("$organizationPrefix.Bootstrapper"))
+                        {
+                            $packageShouldBeAutoUpdated = $true
+                        }
+                    }
+                    
+                    if ($packageShouldBeAutoUpdated)
+                    {
+                        Write-Output "        - Package '$packageId' should be checked for updates."
+                        if ($updateCorePackages)
+                        {
+                            Install-Package -Id $packageId -ProjectName $projectName
+                        }
+                        else
+                        {
+                            Write-Output '        ! Skipping because (updateCorePackages -eq $false)'
+                        }
+                        Write-Output ''
+                    }
                 }
-                if ($packageId -eq "$organizationPrefix.Build.Conventions.ReSharper")
-                {
-                    $packageShouldBeAutoUpdated = $true
-                }
-                if ($packageId.StartsWith("$organizationPrefix.Bootstrapper"))
-                {
-                    $packageShouldBeAutoUpdated = $true
-                }
+                
+                Write-Output ''
             }
             
-            if ($packageShouldBeAutoUpdated)
+            Write-Output ''
+            VisualStudio-CheckNuGetPackageDependencies
+
+            Write-Output "Updating recipe NuSpec dependency versions to match packages for all projects in solution '$solutionName' ($solutionFilePath)."
+            $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
+                $projectName = $_.ProjectName
+                $projectFilePath = $_.FullName
+                $projectDirectory = Split-Path $projectFilePath
+                Write-Output "    - '$projectName' ($projectDirectory)"
+                $packagesConfigPath = Join-Path $projectDirectory 'packages.config'
+                [xml] $packagesConfigContents = Get-Content $packagesConfigPath
+                $recipeNuSpecs = ls $projectDirectory -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" -Recurse
+                $recipeNuSpecs | %{
+                    $recipeNuSpecPath = $_.FullName
+                    [xml] $recipeNuSpecContents = Get-Content $recipeNuSpecPath
+                    $recipeNuSpecContents.package.metadata.dependencies.dependency | %{
+                        $id = $_.id
+                        $version = $_.version
+                        $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ?{$_.id -eq $id}
+                        if ($matchingPackagesConfigNode -ne $null)
+                        {
+                            $newVersion = $matchingPackagesConfigNode.version
+                            #figure out how to update with the ( [ , etc...
+                            $splitChars = ,'[',']','(',')',','
+                            $splitOutVersion = $version.Split($splitChars, [System.StringSplitOptions]::RemoveEmptyEntries)
+                            $currentVersion = $null
+                            if ($splitOutVersion.Length -eq 1)
+                            {
+                                $currentVersion = $splitOutVersion[0]
+                            }
+                            elseif ($splitOutVersion.Length -eq 2)
+                            {
+                                $currentVersion = $splitOutVersion[1]
+                            }
+                            else
+                            {
+                                throw "Version of package id '$id' ($version) in $packagesConfigPath was not a recognized structure."
+                            }
+                            
+                            $_.SetAttribute('version', $version.Replace($currentVersion, $newVersion))
+                        }
+                        
+                    }
+                    
+                    Write-Output "      - Updating one or more versions in ($recipeNuSpecPath)."
+                    $recipeNuSpecContents.Save($(Resolve-Path $recipeNuSpecPath))
+                }
+            }
+
+            Write-Output ''
+            Write-Output 'Building Release with Code Analysis'
+            Write-Output ''
+            if ($runReleaseBuild)
             {
-                Write-Output "        - Package '$packageId' should be checked for updates."
-                if ($updateCorePackages)
+                $msBuildReleasePropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
+                $msBuildReleasePropertiesDictionary.Add('Configuration', 'release')
+                $msBuildReleasePropertiesDictionary.Add('DebugType', 'pdbonly')
+                $msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $true)
+                $msBuildReleasePropertiesDictionary.Add('RunCodeAnalysis', $true)
+                $msBuildReleasePropertiesDictionary.Add('CodeAnalysisTreatWarningsAsErrors', $true)
+                MsBuild-Custom -customBuildFilePath $solutionFilePath -target 'Build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary
+            }
+            else
+            {
+                Write-Output '! Skipping because (runReleaseBuild -eq $false)'
+            }
+
+            $keepTrying = $false
+            Write-Output ''
+            Write-Output 'Finished PreCommit checks, all is good.'
+        }
+        catch
+        {
+            $error = $_
+            $errorString = $error.Exception.Message
+            $commandPrefix = '; run '
+            if ($errorString.Contains($commandPrefix) -and ($errorString.Contains('Install-Package') -or $errorString.Contains('Uninstall-Package')))
+            {
+                $commandSplit = $errorString.Split(@($commandPrefix), [StringSplitOptions]::RemoveEmptyEntries)
+                if ($commandSplit.Length -ne 2)
                 {
-                    Install-Package -Id $packageId -ProjectName $projectName
+                    $commandSplit | %{
+                        Write-Output $_
+                    }
+
+                    Write-Output 'Issue with parsing command.'
+                    throw $error
+                }
+                
+                $message = $commandSplit[0]
+                $command = $commandSplit[1]
+
+                Write-Output $message
+                Write-Output "Run command [y]? $command"
+                $answer = Read-Host
+                if ($answer -eq 'y')
+                {
+                    $commandSuccess = $false
+                    while (-not $commandSuccess)
+                    {
+                        $scriptBlock = [scriptblock]::Create("$command -ErrorAction Stop")
+                        try
+                        {
+                            &$scriptBlock
+                            $commandSuccess = $true
+                        }
+                        catch
+                        {
+                            $commandError = $_
+                            $commandErrorString = $commandError.Exception.Message
+                            if ($commandErrorString.StartsWith('Unable to uninstall'))
+                            {
+                                $rootMatchString = "because '(.*[a-z]).[0-9].*"
+                                # first check for multiple matches and select first - e.g. Unable to uninstall 'Newtonsoft.Json.9.0.1' because  'OBeautifulCode.AccountingTime.Serialization.Json.1.0.116, OBeautifulCode.Serialization.Json.1.0.16' depend on it.
+                                $wasMatch = $commandErrorString -match "$rootMatchString," #add the comma to regex to clip after first match
+                                if ((-not $wasMatch) -or ($matches.Count -ne 2))
+                                {
+                                    # second check for  single match - e.g. Newtonsoft.Json.9.0.1' because 'OBeautifulCode.Serialization.Json.1.0.16' depends on it.
+                                    $wasMatch = $commandErrorString -match $rootMatchString
+                                     if ((-not $wasMatch) -or ($matches.Count -ne 2))
+                                    {
+                                        Write-Output "Issue with parsing package from '$commandErrorString'."
+                                        throw $commandError
+                                    }
+                                }
+                                
+                                $offendingPackage = $matches[1]
+                                
+                                $projectName = $command.Split(@('-ProjectName '), [StringSplitOptions]::RemoveEmptyEntries)[1]
+                                
+                                $commandAgain = "Uninstall-Package -Id $offendingPackage -ProjectName $projectName"
+                            
+                                Write-Output $commandErrorString
+                                Write-Output "Run command [y]? $commandAgain"
+                                $answer = Read-Host
+                                if ($answer -eq 'y')
+                                {
+                                    $scriptBlockAgain = [scriptblock]::Create("$commandAgain -ErrorAction Stop")
+                                    &$scriptBlockAgain
+                                }
+                            }
+                            else
+                            {
+                                throw $commandError
+                            }
+                        }
+                    }
                 }
                 else
                 {
-                    Write-Output '        ! Skipping because (updateCorePackages -eq $false)'
+                    throw $error
                 }
-                Write-Output ''
+            }
+            else
+            {
+                throw $error
             }
         }
-        
-        Write-Output ''
-    }
-    
-    Write-Output ''
-    VisualStudio-CheckNuGetPackageDependencies
-
-    Write-Output "Updating recipe NuSpec dependency versions to match packages for all projects in solution '$solutionName' ($solutionFilePath)."
-    $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
-        $projectName = $_.ProjectName
-        $projectFilePath = $_.FullName
-        $projectDirectory = Split-Path $projectFilePath
-        Write-Output "    - '$projectName' ($projectDirectory)"
-        $packagesConfigPath = Join-Path $projectDirectory 'packages.config'
-        [xml] $packagesConfigContents = Get-Content $packagesConfigPath
-        $recipeNuSpecs = ls $projectDirectory -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" -Recurse
-        $recipeNuSpecs | %{
-            $recipeNuSpecPath = $_.FullName
-            [xml] $recipeNuSpecContents = Get-Content $recipeNuSpecPath
-            $recipeNuSpecContents.package.metadata.dependencies.dependency | %{
-                $id = $_.id
-                $version = $_.version
-                $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ?{$_.id -eq $id}
-                if ($matchingPackagesConfigNode -ne $null)
-                {
-                    $newVersion = $matchingPackagesConfigNode.version
-                    #figure out how to update with the ( [ , etc...
-                    $splitChars = ,'[',']','(',')',','
-                    $splitOutVersion = $version.Split($splitChars, [System.StringSplitOptions]::RemoveEmptyEntries)
-                    $currentVersion = $null
-                    if ($splitOutVersion.Length -eq 1)
-                    {
-                        $currentVersion = $splitOutVersion[0]
-                    }
-                    elseif ($splitOutVersion.Length -eq 2)
-                    {
-                        $currentVersion = $splitOutVersion[1]
-                    }
-                    else
-                    {
-                        throw "Version of package id '$id' ($version) in $packagesConfigPath was not a recognized structure."
-                    }
-                    
-                    $_.SetAttribute('version', $version.Replace($currentVersion, $newVersion))
-                }
-                
-            }
-            
-            Write-Output "      - Updating one or more versions in ($recipeNuSpecPath)."
-            $recipeNuSpecContents.Save($(Resolve-Path $recipeNuSpecPath))
-        }
-    }
-
-    Write-Output ''
-    Write-Output 'Building Release with Code Analysis'
-    Write-Output ''
-    if ($runReleaseBuild)
-    {
-        $msBuildReleasePropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
-        $msBuildReleasePropertiesDictionary.Add('Configuration', 'release')
-        $msBuildReleasePropertiesDictionary.Add('DebugType', 'pdbonly')
-        $msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $true)
-        $msBuildReleasePropertiesDictionary.Add('RunCodeAnalysis', $true)
-        $msBuildReleasePropertiesDictionary.Add('CodeAnalysisTreatWarningsAsErrors', $true)
-        MsBuild-Custom -customBuildFilePath $solutionFilePath -target 'Build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary
-    }
-    else
-    {
-        Write-Output '! Skipping because (runReleaseBuild -eq $false)'
-    }
-
-    Write-Output ''
-    Write-Output 'Finished PreCommit checks, all is good.'
+    } while ($keepTrying)
 }
 
 function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [boolean] $uninstall = $false)
@@ -217,7 +311,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $packagesConfigFileName = 'packages.config'
         $packagesConfigFile = Join-Path $projectDirectory $packagesConfigFileName
         [xml] $packagesConfigXml = Get-Content $packagesConfigFile
-        $expectedPackageIdsFromProjectReferences = New-Object 'System.Collections.Generic.List[String]'
+        $expectedPackageIdsFromProjectReferences = New-Object 'System.Collections.Generic.Dictionary[String, String]'
         $packageIdsInProject = New-Object 'System.Collections.Generic.List[String]'
         $packagesConfigXml.packages.package | %{
             $packageIdsInProject.Add($_.Id)
@@ -243,9 +337,9 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $projectPackageFilePath = Join-Path (Split-Path $_) $packagesConfigFileName
             [xml] $projectPackageFileXml = Get-Content $projectPackageFilePath
             $projectPackageFileXml.packages.package | %{
-                if ($_.developmentDependency -ne $true)
+                if (($_.developmentDependency -ne $true) -and (-not $expectedPackageIdsFromProjectReferences.ContainsKey($_.Id)))
                 {
-                    $expectedPackageIdsFromProjectReferences.Add($_.Id)
+                    $expectedPackageIdsFromProjectReferences.Add($_.Id, $_.Version)
                 }
             }
         }
@@ -256,10 +350,12 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             Write-Output "        - '$referencedProjectFileName' ($_)"
         }
         
-        $expectedPackageIdsFromProjectReferences | %{
-            if (-not $packageIdsInProject.Contains($_))
+        $expectedPackageIdsFromProjectReferences.Keys | %{
+            $id = $_
+            $version = $expectedPackageIdsFromProjectReferences[$id]
+            if (-not $packageIdsInProject.Contains($id))
             {
-                throw "    Expected a NuGet reference to $_; run Install-Package -Id $_ -ProjectName $projectName"
+                throw "    Expected a NuGet reference to $_; run Install-Package -Id $id -Version $version -ProjectName $projectName"
             }
         }
         
@@ -756,6 +852,28 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
             {
                 [void]$deps.AppendChild($newElement)
             }
+        }
+        
+        $targetFramework = $(MsBuild-GetTargetFramework -projectFilePath $projectFilePath).Replace('v', 'net').Replace('.', '')
+
+        $frameworkAssemblies = $null
+        if ($recipeNuSpecXml.package.metadata.frameworkAssemblies.frameworkAssembly -eq $null)
+        {
+            throw "Empty 'frameworkAssemblies' node is not supported yet, please add a dummy entry (e.g. <frameworkAssembly assemblyName=`"JUST TO MAKE THE XML WORK`" targetFramework=`"net462`" />) to the 'package->metadata->frameworkAssemblies' node in ($recipeNuSpecFilePath) and retry."
+        }
+        else
+        {
+            $frameworkAssemblies = $recipeNuSpecXml.package.metadata.frameworkAssemblies
+        }
+        
+        $frameworkAssemblies.RemoveAll()
+        $projectObject = VisualStudio-GetProjectFromSolution -projectFilePath $projectFilePath
+        $projectObject.Object.References | ?{($_.Identity -ne 'System.Core') -and ($_.Identity.StartsWith('System.') -or ($_.Identity -eq 'Microsoft.CSharp')) -and $_.Path.Contains('Reference Assemblies\Microsoft\Framework\')} | %{
+            $assemblyName = $_.Identity
+            $newElement = $recipeNuSpecXml.CreateElement('frameworkAssembly')
+            $newElement.SetAttribute('assemblyName', $assemblyName)
+            $newElement.SetAttribute('targetFramework', $targetFramework)
+            [void]$frameworkAssemblies.AppendChild($newElement)
         }
         
         $recipeNuSpecXml.Save($recipeNuSpecFilePath)
