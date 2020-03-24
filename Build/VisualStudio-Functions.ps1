@@ -508,7 +508,7 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     Write-Output ''
 }
 
-function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testProjectName = $null)
+function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testProjectName = $null, [boolean] $includeSerializationTesting = $true)
 {    
     if ([string]::IsNullOrWhitespace($projectName))
     {
@@ -585,7 +585,7 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     $codeGenConsoleFilePath = Join-Path $codeGenConsoleLatestVersionRootDirectory 'packagedConsoleApp/OBeautifulCode.CodeGen.Console.exe'
     File-ThrowIfPathMissing -path $codeGenConsoleFilePath -because "Package should contain the OBC.CodeGen.Console.exe at ($codeGenConsoleFilePath)."
 
-    &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory
+    &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory /includeSerializationTesting=$includeSerializationTesting
     if ($lastexitcode -ne 0)
     {
         throw "Failure running: $codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory"
