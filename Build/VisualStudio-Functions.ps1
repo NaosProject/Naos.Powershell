@@ -252,6 +252,11 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
     } while ($keepTrying)
 }
 
+function VisualStudio-ClearNuGetCache()
+{
+    &$NuGetExeFilePath locals all -clear
+}
+
 function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [boolean] $uninstall = $false)
 {
     if (($projectName -ne $null) -and ($projectName.StartsWith('.\')))
