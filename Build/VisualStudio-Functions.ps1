@@ -208,18 +208,13 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                             $commandErrorString = $commandError.Exception.Message
                             if ($commandErrorString.StartsWith('Unable to uninstall'))
                             {
-                                $rootMatchString = "because '(.*[a-z]).[0-9].*"
-                                # first check for multiple matches and select first - e.g. Unable to uninstall 'Newtonsoft.Json.9.0.1' because  'OBeautifulCode.AccountingTime.Serialization.Json.1.0.116, OBeautifulCode.Serialization.Json.1.0.16' depend on it.
-                                $wasMatch = $commandErrorString -match "$rootMatchString," #add the comma to regex to clip after first match
+                                $matchString = "because '([a-zA-Z.]+).[0-9]+"
+                                # Can be one or many packages - e.g. Unable to uninstall 'Newtonsoft.Json.9.0.1' because  'OBeautifulCode.AccountingTime.Serialization.Json.1.0.116, OBeautifulCode.Serialization.Json.1.0.16' depend on it.
+                                $wasMatch = $commandErrorString -match $matchString
                                 if ((-not $wasMatch) -or ($matches.Count -ne 2))
                                 {
-                                    # second check for  single match - e.g. Newtonsoft.Json.9.0.1' because 'OBeautifulCode.Serialization.Json.1.0.16' depends on it.
-                                    $wasMatch = $commandErrorString -match $rootMatchString
-                                     if ((-not $wasMatch) -or ($matches.Count -ne 2))
-                                    {
-                                        Write-Output "Issue with parsing package from '$commandErrorString'."
-                                        throw $commandError
-                                    }
+                                    Write-Output "Issue with parsing package from '$commandErrorString'."
+                                    throw $commandError
                                 }
                                 
                                 $offendingPackage = $matches[1]
