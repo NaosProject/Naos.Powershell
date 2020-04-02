@@ -252,6 +252,38 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
     } while ($keepTrying)
 }
 
+function VisualStudio-VerifyEnvironment()
+{
+    # Designed to be a verification of the Visual Studio configuration, not strictly necessary to have all items but helps...
+    
+    $envEnableLegacyCodeAnalysisName = 'EnableLegacyCodeAnalysis'
+    $envEnableLegacyCodeAnalysisValue = [System.Environment]::GetEnvironmentVariable($envEnableLegacyCodeAnalysisName,[System.EnvironmentVariableTarget]::User)
+    Write-Output "Checking for user environment variable '$envEnableLegacyCodeAnalysisName' set to 'true'."
+    if ($envEnableLegacyCodeAnalysisValue -ne $true)
+    {
+        Write-Error "Environment variable not set correctly (found value $envEnableLegacyCodeAnalysisValue); run this command from an Administrator Powershell Window: [System.Environment]::SetEnvironmentVariable('$envEnableLegacyCodeAnalysisName','$($true.ToString().ToLower())',[System.EnvironmentVariableTarget]::User)"
+    }
+    
+    Write-Output "Checking profile '$profile' for necessary dot-sourced files."
+    $fileSystemFunctionsFileName = 'FileSystem-Functions.ps1'
+    $nugetFunctionsFileName = 'NuGet-Functions.ps1'
+    $msbuildFunctionsFileName = 'MsBuild-Functions.ps1'
+    $visualStudioFunctionsFileName = 'VisualStudio-Functions.ps1'
+    $expectedDotSourcedFiles = @($fileSystemFunctionsFileName, $nugetFunctionsFileName, $msbuildFunctionsFileName, $visualStudioFunctionsFileName)
+    $profileText = Get-Content $profile
+    $expectedDotSourcedFiles | %{
+        $untreatedFilename = $_
+        Write-Output "   Confirm '$untreatedFilename'"
+        $treatedFilename = $untreatedFilename.Replace('.ps1', '[.]ps1')
+        $regexMatchForDotSourcedFile = "^[.][ ].*$treatedFilename"
+        $regexMatchResult = $profileText -match $regexMatchForDotSourcedFile
+        if (($regexMatchResult -eq $null) -or ($regexMatchResult.Length -eq 0) -or (-not $regexMatchResult[0].EndsWith($untreatedFilename)))
+        {
+            Write-Error "The profile for Visual Studio Package Manager Console located at '$profile' should contain a 'dot-source' reference to '$untreatedFilename' in Naos.Powershell repo Build folder; e.g. '. C:\Source\Naos\Naos.Powershell\Build\$untreatedFilename'"
+        }
+    }
+}
+
 function VisualStudio-ClearNuGetCache()
 {
     &$NuGetExeFilePath locals all -clear
