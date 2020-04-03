@@ -1019,6 +1019,13 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $projectNameWithoutTestSuffix = $projectNameWithoutTestSuffix.SubString(0, $projectNameWithoutTestSuffix.Length - 5)
     }
     
+    $recipeDummyFactoryClassNamePrefix = $projectName
+    if ($recipeDummyFactoryClassNamePrefix.EndsWith('.Test'))
+    {
+        $recipeDummyFactoryClassNamePrefix = $recipeDummyFactoryClassNamePrefix.SubString(0, $recipeDummyFactoryClassNamePrefix.Length - 5)
+    }
+    $recipeDummyFactoryClassNamePrefix = $recipeDummyFactoryClassNamePrefix.Replace("$organizationPrefix.", '').Replace('.', '')
+    
     $projectNameWithoutSerializationSuffix = $projectName
     if ($projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Bson') -or $projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Json'))
     {
@@ -1033,6 +1040,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tokenReplacementList.Add('[PROJECT_NAME]', $projectName)
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_SERIALIZATION_SUFFIX]', $projectNameWithoutSerializationSuffix)
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_TEST_SUFFIX]', $projectNameWithoutTestSuffix)
+    $tokenReplacementList.Add('[RECIPE_DUMMYFACTORY_CLASSNAME_PREFIX]', $recipeDummyFactoryClassNamePrefix)
     $tokenReplacementList.Add('[SOLUTION_NAME]', $solutionName)
     $tokenReplacementList.Add('[RECIPE_CONDITIONAL_COMPILATION_SYMBOL]', "$($solutionName.Replace('.', ''))RecipesProject")
     $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_ID]', $packageIdTemplate)
