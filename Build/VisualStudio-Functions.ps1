@@ -1019,12 +1019,22 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
         $projectNameWithoutTestSuffix = $projectNameWithoutTestSuffix.SubString(0, $projectNameWithoutTestSuffix.Length - 5)
     }
     
-    $recipeDummyFactoryClassNamePrefix = $projectName
-    if ($recipeDummyFactoryClassNamePrefix.EndsWith('.Test'))
+    $projectNameWithoutDomainOrTestSuffix = $projectName
+    if ($projectNameWithoutDomainOrTestSuffix.EndsWith('.Test'))
     {
-        $recipeDummyFactoryClassNamePrefix = $recipeDummyFactoryClassNamePrefix.SubString(0, $recipeDummyFactoryClassNamePrefix.Length - 5)
+        $projectNameWithoutDomainOrTestSuffix = $projectNameWithoutDomainOrTestSuffix.SubString(0, $projectNameWithoutDomainOrTestSuffix.Length - 5)
     }
-    $recipeDummyFactoryClassNamePrefix = $recipeDummyFactoryClassNamePrefix.Replace("$organizationPrefix.", '').Replace('.', '')
+    if ($projectNameWithoutDomainOrTestSuffix.EndsWith('.Domain'))
+    {
+        $projectNameWithoutDomainOrTestSuffix = $projectNameWithoutDomainOrTestSuffix.SubString(0, $projectNameWithoutDomainOrTestSuffix.Length - 7)
+    }
+    
+    $projectNameClassNamePrefix = $projectNameWithoutDomainOrTestSuffix
+    if ($projectNameClassNamePrefix.EndsWith('.Serialization.Bson') -or $projectNameClassNamePrefix.EndsWith('.Serialization.Json'))
+    {
+        $projectNameClassNamePrefix = $projectNameClassNamePrefix.SubString(0, $projectNameClassNamePrefix.Length - 19)
+    }
+    $projectNameClassNamePrefix = $projectNameClassNamePrefix.Replace("$organizationPrefix.", '').Replace('.', '')
     
     $projectNameWithoutSerializationSuffix = $projectName
     if ($projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Bson') -or $projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Json'))
@@ -1039,8 +1049,9 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tokenReplacementList.Add('[SUBSYSTEM_NAME]', $subsystemName)
     $tokenReplacementList.Add('[PROJECT_NAME]', $projectName)
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_SERIALIZATION_SUFFIX]', $projectNameWithoutSerializationSuffix)
+    $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_DOMAIN_OR_TEST_SUFFIX]', $projectNameWithoutDomainOrTestSuffix)
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_TEST_SUFFIX]', $projectNameWithoutTestSuffix)
-    $tokenReplacementList.Add('[RECIPE_DUMMYFACTORY_CLASSNAME_PREFIX]', $recipeDummyFactoryClassNamePrefix)
+    $tokenReplacementList.Add('[PROJECT_NAME_CLASSNAME_PREFIX]', $projectNameClassNamePrefix)
     $tokenReplacementList.Add('[SOLUTION_NAME]', $solutionName)
     $tokenReplacementList.Add('[RECIPE_CONDITIONAL_COMPILATION_SYMBOL]', "$($solutionName.Replace('.', ''))RecipesProject")
     $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_ID]', $packageIdTemplate)
