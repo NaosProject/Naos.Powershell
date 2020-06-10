@@ -147,3 +147,86 @@ function File-FindReplaceInFileName([string] $directoryPath, [boolean] $recurse 
         }
     }
 }
+
+function File-FindReplaceInDirectoryName([string] $directoryPath, [boolean] $recurse = $true, [string] $find, [string] $replace)
+{
+    if ($replace.Contains($find))
+    {
+        throw "Provided replacement string '$replace' contains the search term '$find'; this will cause infinite recursion."
+    }
+    
+    File-ThrowIfPathMissing -path $directoryPath
+    $directoryItem = Get-Item $directoryPath
+    if (-not $directoryItem.PSIsContainer)
+    {
+        throw "Must specify a path to a directory; specified path is not a directory ($directoryPath)."
+    }
+
+    $moveDirectories = $true
+    
+    while ($moveDirectories)
+    {
+        $directoryPathsRaw = $null
+        if ($recurse -eq $true)
+        {
+            $directoryPathsRaw = ls $directoryPath -Recurse
+        }
+        else
+        {
+            $directoryPathsRaw = ls $directoryPath
+        }
+        
+        $nextDirectoryPath = $directoryPathsRaw | ?{$_.PSIsContainer} | ?{$_.Name.Contains($find)} | %{$_.FullName} | Select-Object -First 1
+        if ($nextDirectoryPath -eq $null)
+        {
+            $moveDirectories = $false
+        }
+        else
+        {
+            $nextDirectoyRoot = Split-Path $nextDirectoryPath
+            $nextDirectoryName = Split-Path $nextDirectoryPath -Leaf
+            $newDirectoryName = $nextDirectoryName.Replace($find, $replace)
+            $newDirectoryPath = Join-Path $nextDirectoyRoot $newDirectoryName
+            if ($newDirectoryPath -ne $nextDirectoryPath)
+            {
+                Move-Item $nextDirectoryPath $newDirectoryPath
+            }
+        }
+    }
+}
+
+function File-FindReplaceInFileContents([string] $directoryPath, [string] $fileSearchPattern = $null, [boolean] $recurse = $true, [string] $find, [string] $replace, [System.Text.Encoding] $outputEncoding = [System.Text.Encoding]::UTF8)
+{
+    File-ThrowIfPathMissing -path $directoryPath
+    $directoryItem = Get-Item $directoryPath
+    if (-not $directoryItem.PSIsContainer)
+    {
+        throw "Must specify a path to a directory; specified path is not a directory ($directoryPath)."
+    }
+
+    $localSearchPattern = "*"
+    if ($fileSearchPattern -ne $null)
+    {
+        $localSearchPattern = $fileSearchPattern
+    }
+
+    $files = $null
+    if ($recurse -eq $true)
+    {
+        $files = ls $directoryPath -Filter $localSearchPattern -Recurse
+    }
+    else
+    {
+        $files = ls $directoryPath -Filter $localSearchPattern
+    }
+    
+    $files | ?{-not $_.PSIsContainer} | %{
+        $filePath = $_.FullName
+        $contents = [System.IO.File]::ReadAllText($filePath)
+        $replacedContents = $contents.Replace($find, $replace)
+        if ($replacedContents -ne $contents)
+        {
+            [System.IO.File]::WriteAllText($filePath, $replacedContents, $outputEncoding)
+        }
+    }
+}
