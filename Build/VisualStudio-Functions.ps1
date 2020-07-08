@@ -289,6 +289,34 @@ function VisualStudio-ClearNuGetCache()
     &$NuGetExeFilePath locals all -clear
 }
 
+function VisualStudio-RestoreNuGetPackages()
+{
+    $solution = $DTE.Solution
+    $solutionFilePath = $solution.FileName
+    $solutionDirectory = Split-Path $solutionFilePath
+    $solutionFileName = Split-Path $solutionFilePath -Leaf
+    
+    # this is to deal with: "Errors in packages.config projects   ---    The specified path, file name, or both are too long. The fully qualified file name must be less than 260 characters, and the directory name must be less than 248 characters." --- This can occur with downstream long named packages so we will do this every time...
+        
+    [scriptBlock] $restoreCommand = {
+        param([string] $mappedDrive)
+
+        #$mappedPath = Join-Path $mappedDrive $solutionFileName
+    
+        #Write-Output "Calling restore on '$solutionFilePath' via '$mappedPath' to ensure no path too long problems."
+        #&$NuGetExeFilePath restore $localMappedPath        
+        
+        $packagesDirectory = Join-Path $mappedDrive $nuGetConstants.Directories.Packages
+        $csProjs = ls $mappedDrive -Filter '*.csproj' -Recurse | %{$_.FullName}
+        $csProjs | %{
+            Write-Output "Calling restore on '$solutionFilePath' project via '$_' to ensure no path too long problems."
+            &$NuGetExeFilePath restore $_ -PackagesDirectory $packagesDirectory
+        }
+    }
+    
+    File-RunScriptBlockMappingDirectoryToDrive -directoryPath $solutionDirectory -scriptBlock $restoreCommand
+}
+
 function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [boolean] $uninstall = $false)
 {
     if (($projectName -ne $null) -and ($projectName.StartsWith('.\')))
