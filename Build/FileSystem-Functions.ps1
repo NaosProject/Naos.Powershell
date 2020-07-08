@@ -230,3 +230,40 @@ function File-FindReplaceInFileContents([string] $directoryPath, [string] $fileS
         }
     }
 }
+
+function File-RunScriptBlockMappingDirectoryToDrive([string] $directoryPath, [scriptBlock] $scriptBlock)
+{
+    # This is to skirt path too long exceptions by running the command against a drive letter and subpath...
+    $azString = [char[]](255..0) -clike '[A-Z]' -join ''
+    $azCharArray = $azString.ToCharArray()
+
+    $driveLetterDefault = 'NotAssigned'
+    $driveLetter = $driveLetterDefault
+    $azCharArray | %{
+        $localDrive = "$_`:"
+        if (($driveLetter -eq $driveLetterDefault) -and (-not (Test-Path $localDrive)))
+        {
+            $driveLetter = $localDrive
+        }
+    }
+
+    Write-Output "net use $driveLetter $directoryPath"
+    subst $driveLetter $directoryPath
+    
+    try
+    {
+        &$scriptBlock($driveLetter)
+    }
+    catch
+    {
+        subst $driveLetter /d
+        throw
+    }
+
+    subst $driveLetter /d
+}
+
+
+
+
+
