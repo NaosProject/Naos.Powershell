@@ -20,6 +20,20 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
             $solutionDirectory = Split-Path $solutionFilePath
             $solutionName = Split-Path $solution.FileName -Leaf
             $organizationPrefix = $solutionName.Split('.')[0]
+
+
+            Write-Output "Checking for projects in solution directory '$solutionDirectory' that are NOT in solution '$solutionName' ($solutionFilePath)."
+            $projectsFromSolution = $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{ Split-Path $_.FullName }
+            $projectsOnDisk = ls $solutionDirectory | ?{ $_.PSIsContainer } | ?{$_.Name -ne $nuGetConstants.Directories.Packages} | %{ $_.FullName }
+            $projectsOnDiskButNotSolution = $projectsOnDisk | ?{ -not $projectsFromSolution.Contains($_) }
+            if ($projectsOnDiskButNotSolution.Count -ne 0)
+            {
+                $projectsOnDiskError = [String]::Join(', ', $projectsOnDiskButNotSolution)
+                throw "Founds project directories on disk that are not in the solution; $projectsOnDiskError"
+            }
+            Write-Output ''
+            Write-Output ''
+
             Write-Output "Adding any root files in ($solutionDirectory) as 'Solution Items'."
             Write-Output ''
             $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.Contains('sln'))  } | %{$_.FullName}
