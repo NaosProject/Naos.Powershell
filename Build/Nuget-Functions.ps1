@@ -17,6 +17,10 @@ $nuGetConstants = @{
 	Galleries = @{
 		Public = 'nuget.org'
 	}
+    
+    Directories = @{
+        Packages = 'packages'
+    }
 }
 
 
