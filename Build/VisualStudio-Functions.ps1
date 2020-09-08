@@ -609,6 +609,8 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
 
     $solution = $DTE.Solution
     $solutionDirectory = Split-Path $solution.FileName
+    $solutionName = (Split-Path $solution.FileName -Leaf).Replace('.sln', '')
+    $solutionConditionalCompilationSymbol = "$($solutionName.Replace('.', ''))Solution") # Name generation logic duplicated in VisualStudio-AddNewProjectAndConfigure (must change both if changing)
     $projectDirectory = Join-Path $solutionDirectory $projectName
     $testProjectDirectory = Join-Path $solutionDirectory $testProjectName
     File-ThrowIfPathMissing -path $projectDirectory
@@ -660,10 +662,10 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     $codeGenConsoleFilePath = Join-Path $codeGenConsoleLatestVersionRootDirectory 'packagedConsoleApp/OBeautifulCode.CodeGen.Console.exe'
     File-ThrowIfPathMissing -path $codeGenConsoleFilePath -because "Package should contain the OBC.CodeGen.Console.exe at ($codeGenConsoleFilePath)."
 
-    &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory /includeSerializationTesting=$includeSerializationTesting
+    &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory /includeSerializationTesting=$includeSerializationTesting /recipeConditionalCompilationSymbol=$solutionConditionalCompilationSymbol
     if ($lastexitcode -ne 0)
     {
-        throw "Failure running: $codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory"
+        throw "Failure running: $codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory /includeSerializationTesting=$includeSerializationTesting /recipeConditionalCompilationSymbol=$solutionConditionalCompilationSymbol"
     }
 
     $projectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $projectFilePath
@@ -1096,7 +1098,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_TEST_SUFFIX]', $projectNameWithoutTestSuffix)
     $tokenReplacementList.Add('[PROJECT_NAME_CLASSNAME_PREFIX]', $projectNameClassNamePrefix)
     $tokenReplacementList.Add('[SOLUTION_NAME]', $solutionName)
-    $tokenReplacementList.Add('[SOLUTION_NAME_CONDITIONAL_COMPILATION_SYMBOL]', "$($solutionName.Replace('.', ''))Solution")
+    $tokenReplacementList.Add('[SOLUTION_NAME_CONDITIONAL_COMPILATION_SYMBOL]', "$($solutionName.Replace('.', ''))Solution") # Name generation logic duplicated in VisualStudio-RunCodeGenForModels (must change both if changing)
     $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_ID]', $packageIdTemplate)
     $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_VERSION]', $packageTemplateVersion)
 
