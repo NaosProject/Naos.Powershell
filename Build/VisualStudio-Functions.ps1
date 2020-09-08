@@ -610,7 +610,7 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     $solution = $DTE.Solution
     $solutionDirectory = Split-Path $solution.FileName
     $solutionName = (Split-Path $solution.FileName -Leaf).Replace('.sln', '')
-    $solutionConditionalCompilationSymbol = "$($solutionName.Replace('.', ''))Solution") # Name generation logic duplicated in VisualStudio-AddNewProjectAndConfigure (must change both if changing)
+    $solutionConditionalCompilationSymbol = "$($solutionName.Replace('.', ''))Solution" # Name generation logic duplicated in VisualStudio-AddNewProjectAndConfigure (must change both if changing)
     $projectDirectory = Join-Path $solutionDirectory $projectName
     $testProjectDirectory = Join-Path $solutionDirectory $testProjectName
     File-ThrowIfPathMissing -path $projectDirectory
