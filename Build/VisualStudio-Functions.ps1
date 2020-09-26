@@ -8,6 +8,24 @@ $visualStudioConstants = @{
 	}
 }
 
+function VisualStudio-DeepCleanSolution()
+{
+    $solution = $DTE.Solution
+    $solutionFilePath = $solution.FileName
+    
+    Write-Output "Calling Clean Debug on $solutionFileName"
+    MsBuild-CleanDebug -solutionFilePath $solutionFilePath
+
+    Write-Output "Calling Clean Release on $solutionFileName"
+    MsBuild-CleanRelease -solutionFilePath $solutionFilePath
+    
+    $solutionDirectory = Split-Path $solutionFilePath
+    $objDirectories = ls $solutionDirectory -Recurse | ?{$_.PsIsContainer -and ($_.Name -eq 'obj')} | %{$_.FullName}
+    $binDirectories = ls $solutionDirectory -Recurse | ?{$_.PsIsContainer -and ($_.Name -eq 'bin')} | %{$_.FullName}
+    $objDirectories | %{ rm $_ -Force -Recurse; Write-Output "Removing directory (Force and Recurse) $_" }
+    $binDirectories | %{ rm $_ -Force -Recurse; Write-Output "Removing directory (Force and Recurse) $_" }
+}
+
 function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true, [boolean] $keepTrying = $false)
 {
     do
