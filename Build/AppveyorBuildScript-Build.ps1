@@ -57,6 +57,8 @@ $nuSpecFileConventionsRepoConfig = Resolve-Path ./Conventions/Naos.Build.Convent
 $nuspecs.Add($nuSpecFileConventionsRepoConfig)
 $nuSpecFileConventionsReSharper = Resolve-Path ./Conventions/Naos.Build.Conventions.ReSharper.nuspec
 $nuspecs.Add($nuSpecFileConventionsReSharper)
+$nuSpecProjectInfo = Resolve-Path ./ProjectInfo/Naos.Build.Properties.ProjectInfo.nuspec
+$nuspecs.Add($nuSpecProjectInfo)
 
 $nuSpecTemplateFilePath = $(ls . -Recurse | ?{$_.Name -eq 'NaosNuSpecTemplate.template-nuspec'}).FullName
 
