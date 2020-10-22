@@ -73,6 +73,7 @@ try
 		$referenceProject = $projects | ?{ $_.name -eq $ReferenceProjectName }
 		$referenceProjectSettingsUrl = "https://ci.appveyor.com/api/projects/$($referenceProject.accountName)/$($referenceProject.slug)/settings/yaml"
 		$referenceProjectYaml = Invoke-RestMethod -Uri $referenceProjectSettingsUrl -Headers $headers -Method Get -ContentType "plain/text"
+        $referenceBuild = $referenceProjectYaml.Split([Environment]::NewLine)[0]
 		
 		Write-Host -ForegroundColor Magenta ">BEGIN Reference Project YAML ($ReferenceProjectName)"
 		Write-Host $referenceProjectYaml
@@ -81,16 +82,32 @@ try
 		$projects | ?{ $_.name -ne $ReferenceProjectName } | %{
 			if ([String]::IsNullOrEmpty($TargetProjectName) -or ($TargetProjectName -eq $_.name))
 			{
+                # Make sure that we do not overwrite unique settings (like the build version pattern which could have been manually manipulated)
+                $existingProjectSettingsUrl = "https://ci.appveyor.com/api/projects/$($_.accountName)/$($_.slug)/settings/yaml"
+                $existingProjectYaml = Invoke-RestMethod -Uri $existingProjectSettingsUrl -Headers $headers -Method Get -ContentType "plain/text"
+                $existingBuild = $existingProjectYaml.Split([Environment]::NewLine)[0]
+
+                $newYaml = $referenceProjectYaml.Replace($referenceBuild, $existingBuild)
+            
 				$settingsUrl = "https://ci.appveyor.com/api/projects/$($_.accountName)/$($_.slug)/settings/yaml"
-				Write-Host ">Updating $($_.name) with reference YAML"
-				$putResponse = Invoke-WebRequest -Uri $settingsUrl -Headers $headers -Method Put -ContentType "plain/text" -Body $referenceProjectYaml
+
+                Write-Host -ForegroundColor Magenta ">BEGIN Updating $($_.name) with new YAML; updated from ($referenceProjectName)"
+
+                Write-Host -ForegroundColor Magenta "-> START updated YAML"
+                Write-Output $newYaml
+                Write-Host -ForegroundColor Magenta "<-END updated YAML"
+
+				$putResponse = Invoke-WebRequest -Uri $settingsUrl -Headers $headers -Method Put -ContentType "plain/text" -Body $newYaml
 				$responseCode = $putResponse.StatusCode
+
+				Write-Host "<Response was '$responseCode' (204 is expected if successful)"
+
 				if ($responseCode -ne '204')
 				{
 					throw "Expected a response code of 204 and instead got $responseCode, please investigate..."
 				}
 				
-				Write-Host "<Response was $responseCode (Expect 204)"
+                Write-Host -ForegroundColor Magenta "<END Updating $($_.name) with new YAML; updated from ($referenceProjectName)"
 				Write-Host ''
 			}
 		}
