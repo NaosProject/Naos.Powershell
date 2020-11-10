@@ -1140,7 +1140,9 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
             }
         }
         
-        $contents | Out-File -LiteralPath $file -Encoding UTF8
+        # This generates UNIX file endings, not Windows, which is what we want.
+        # $contents | Out-File -LiteralPath $file -Encoding UTF8
+        [System.IO.File]::WriteAllText($file, $contents, [System.Text.Encoding]::UTF8)
     }
     
     Write-Host "Using template file $templateFilePath augmented at $packageDirectory."
