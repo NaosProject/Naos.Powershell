@@ -23,18 +23,12 @@ Switch to initiate execution.
 #>
 param(
 	[string] $ProjectName = $(throw 'Must provide a ProjectName'),
-	[string] $BranchName = $null,
+	[string] $BranchName = $(throw 'Must provide a branch name (can be master or main for the root build)'),
 	[string] $ApiToken = $(throw 'Must provide an ApiToken'),
 	[switch] $Run
 )
 try
-{
-	$defaultBranchName = 'master'
-	if ([string]::IsNullOrEmpty($BranchName))
-	{
-		$BranchName = $defaultBranchName
-	}
-	
+{	
 	if ($Run)
 	{
 		$headers = @{
