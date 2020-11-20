@@ -561,7 +561,7 @@ function Nuget-PublishPackage([string] $packagePath, [string] $apiUrl, [string] 
 function Nuget-CreatePreReleaseSupportedVersion([string] $version, [string] $branchName)
 {
 	$preReleaseSupportVersion = $version
-	if ((-not [String]::IsNullOrEmpty($branchName)) -and ($branchName -ne 'master'))
+	if ((-not [String]::IsNullOrEmpty($branchName)) -and ($branchName -ne 'master') -and ($branchName -ne 'main'))
 	{
 		$cleanBranchName = $branchName.Replace('_', '').Replace('-', '').Replace(' ', '').Replace('+', '').Replace('.', '')
 		if ($cleanBranchName.Length -gt 20)
