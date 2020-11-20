@@ -12,7 +12,7 @@ The path that the GIT repo is pulled to (must only contain ONE solution file).
 The FOUR part version to use for versioning.
 
 .PARAMETER BranchName
-The branch name (if applicable) of the source being built, this will be added to the package version as a pre-release if not 'master' or blank.
+The branch name (if applicable) of the source being built, this will be added to the package version as a pre-release if not 'master/main' or blank.
 
 .PARAMETER GalleryUrl
 The url of the NuGet gallery to update packages from (if applicable) and push packages into.
