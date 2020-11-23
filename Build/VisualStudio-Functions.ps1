@@ -1043,6 +1043,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $dotSplitProjectName = $projectName.Split('.')
     $organizationPrefix = $dotSplitProjectName[0]
     $subsystemName = $dotSplitProjectName[1]
+    $projectTypeName = $dotSplitProjectName[2]
     
     $solution = $DTE.Solution
     $solutionDirectory = Split-Path $solution.FileName
@@ -1111,6 +1112,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tokenReplacementList.Add('[ORGANIZATION]', $organizationPrefix)
     $tokenReplacementList.Add('[SUBSYSTEM_NAME]', $subsystemName)
     $tokenReplacementList.Add('[PROJECT_NAME]', $projectName)
+    $tokenReplacementList.Add('[PROJECT_TYPE_NAME]', $projectTypeName)
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_SERIALIZATION_SUFFIX]', $projectNameWithoutSerializationSuffix)
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_DOMAIN_OR_TEST_SUFFIX]', $projectNameWithoutDomainOrTestSuffix)
     $tokenReplacementList.Add('[PROJECT_NAME_WITHOUT_TEST_SUFFIX]', $projectNameWithoutTestSuffix)
