@@ -306,12 +306,13 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		$isNonTestLibrary = ($isLibrary -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj') -or (Get-Item $projFilePath).name.EndsWith('Tests.csproj') -or (Get-Item $projFilePath).name.EndsWith('Tests.vbproj'))))
 		$isNonRecipesLibrary = ($isLibrary -and (-not ((Get-Item $projFilePath).name.Contains('.Recipe.') -or (Get-Item $projFilePath).name.Contains('.Recipes.'))))
 		$isLibraryToAutoPublishToNuget = $isLibrary -and $isNonTestLibrary -and $isNonRecipesLibrary
+        $isNonTestConsoleApp = ($isConsoleApp -and (-not ((Get-Item $projFilePath).name.EndsWith('Test.csproj') -or (Get-Item $projFilePath).name.EndsWith('Test.vbproj') -or (Get-Item $projFilePath).name.EndsWith('Tests.csproj') -or (Get-Item $projFilePath).name.EndsWith('Tests.vbproj'))))
 		
 		$nuspecFilePath = NuGet-GetNuSpecFilePath -projFilePath $projFilePath
 		$recipeNuspecs = ls (Split-Path $projFilePath) -Filter "*.$($nuGetConstants.FileExtensionsWithoutDot.RecipeNuspec)" | %{$_.FullName}
 		$projFileItem = Get-Item $projFilePath
 		$webPublishPath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
-		$shouldBuildPackageFromProject = (Test-Path $nuspecFilePath) -or ($isConsoleApp) -or ($isLibraryToAutoPublishToNuget) -or ($isWebProject -and (Test-Path $webPublishPath))
+		$shouldBuildPackageFromProject = (Test-Path $nuspecFilePath) -or ($isNonTestConsoleApp) -or ($isLibraryToAutoPublishToNuget) -or ($isWebProject -and (Test-Path $webPublishPath))
 	    $shouldBuildRecipesFromProject = ($recipeNuspecs -ne $null)
 		
 		if ($shouldBuildPackageFromProject -or $shouldBuildRecipesFromProject)
@@ -348,7 +349,7 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 				
 				$maintainSubpathFrom = $webPublishPath
 			}
-			elseif($isConsoleApp)
+			elseif($isNonTestConsoleApp)
 			{
 				$binRelease = Join-Path (Split-Path $projFilePath) 'bin\release'
 				Write-Output "Using output files from Publish at $binRelease"
