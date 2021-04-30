@@ -137,7 +137,7 @@ try
                 }
                 else
                 {
-                    $putResponse = Invoke-WebRequest -Uri $settingsUrl -Headers $headers -Method Put -ContentType "plain/text" -Body $newYaml
+                    $putResponse = Invoke-WebRequest -UseBasicParsing -Uri $settingsUrl -Headers $headers -Method Put -ContentType "plain/text" -Body $newYaml
                     $responseCode = $putResponse.StatusCode
 
                     Write-Host "-- Response was '$responseCode' (204 is expected if successful)"
