@@ -710,6 +710,96 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     Remove-Item $codeGenTempDirectory -Recurse -Force
 }
 
+function VisualStudio-DeleteAllCodeGenForModelsDesignerFiles([string] $projectName, [string] $testProjectName = $null, [boolean] $doNotRemoveOnlyRemoveContents = $false)
+{
+    if ([string]::IsNullOrWhitespace($projectName))
+    {
+        throw 'Specify Project Name to operate on.'
+    }
+
+    Write-Output "Start removing all CodeGen for Models Designer Files."
+    
+    if ($projectName.StartsWith('.\'))
+    {
+        # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
+        $projectName = $projectName.SubString(2, $projectName.Length - 2)
+    }
+    
+    if ($testProjectName.StartsWith('.\'))
+    {
+        # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
+        $testProjectName = $testProjectName.SubString(2, $testProjectName.Length - 2)
+    }
+    
+    if ([string]::IsNullOrWhitespace($testProjectName))
+    {
+        $testProjectName = $projectName + ".Test"
+    }
+
+    $solution = $DTE.Solution
+    $solutionDirectory = Split-Path $solution.FileName
+    $solutionName = (Split-Path $solution.FileName -Leaf).Replace('.sln', '')
+    $solutionConditionalCompilationSymbol = "$($solutionName.Replace('.', ''))Solution" # Name generation logic duplicated in VisualStudio-AddNewProjectAndConfigure (must change both if changing)
+    $projectDirectory = Join-Path $solutionDirectory $projectName
+    $testProjectDirectory = Join-Path $solutionDirectory $testProjectName
+    File-ThrowIfPathMissing -path $projectDirectory
+    File-ThrowIfPathMissing -path $testProjectDirectory
+    $projectFilePath = (ls $projectDirectory -Filter '*.csproj').FullName
+    $testProjectFilePath = (ls $testProjectDirectory -Filter '*.csproj').FullName
+    $project = VisualStudio-GetProjectFromSolution -projectFilePath $projectFilePath
+    $testProject = VisualStudio-GetProjectFromSolution -projectFilePath $testProjectFilePath
+    
+    $genToken = 'Generated using OBeautifulCode.CodeGen'
+    $projectDesignerFiles = ls $projectDirectory -Filter '*.designer.cs' -Recurse | %{ $_.FullName } | ?{-not $_.PSIsContainer} | ?{ -not $_.Contains('\.recipes\') } | ?{ (Select-String -Path $_ -Pattern $genToken) -ne $null }    
+    $projectTestDesignerFiles = ls $testProjectDirectory -Filter '*.designer.cs' -Recurse | %{ $_.FullName } | ?{-not $_.PSIsContainer} | ?{ -not $_.Contains('\.recipes\') } | ?{ (Select-String -Path $_ -Pattern $genToken) -ne $null }
+    
+    $projectDesignerFiles | %{
+        if ($doNotRemoveOnlyRemoveContents -eq $true)
+        {
+            Write-Output "Removing contents $_"
+            '' | Out-File $_
+        }
+        else
+        {
+            Write-Output "Removing $_"
+            $item = $solution.FindProjectItem($_)
+            if ($item -ne $null)
+            {
+                $item.Remove()
+            }
+            
+            if (Test-Path $_)
+            {
+                rm $_ -Force
+            }
+        }
+    }
+    
+    $projectTestDesignerFiles | %{
+        if ($doNotRemoveOnlyRemoveContents -eq $true)
+        {
+            Write-Output "Removing contents $_"
+            '' | Out-File $_
+        }
+        else
+        {
+            Write-Output "Removing $_"
+            $item = $solution.FindProjectItem($_)
+            if ($item -ne $null)
+            {
+                $item.Remove()
+            }
+            
+            if (Test-Path $_)
+            {
+                rm $_ -Force
+            }
+        }
+    }
+    
+    Write-Output "Done removing all CodeGen for Models Designer Files."
+}
+
 function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
 {
     # Arrange
