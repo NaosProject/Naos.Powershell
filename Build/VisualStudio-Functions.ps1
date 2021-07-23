@@ -152,7 +152,13 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                     $recipeNuSpecContents.package.metadata.dependencies.dependency | %{
                         $id = $_.id
                         $version = $_.version
-                        $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ?{$_.id -eq $id}
+                        
+                        #do not overwrite a $version$ reference (this happens in places like Naos.Protocol and is not something that should really come up anywhere...)
+                        if ($version -ne '$version$')
+                        {
+                            $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ?{$_.id -eq $id}
+                        }
+                        
                         if ($matchingPackagesConfigNode -ne $null)
                         {
                             $newVersion = $matchingPackagesConfigNode.version
