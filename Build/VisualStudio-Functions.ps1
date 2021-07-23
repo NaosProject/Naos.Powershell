@@ -26,6 +26,11 @@ function VisualStudio-DeepCleanSolution()
     $binDirectories | %{ rm $_ -Force -Recurse; Write-Output "Removing directory (Force and Recurse) $_" }
 }
 
+function VisualStudio-PrePreCommit()
+{
+    VisualStudio-PreCommit -updateCorePackages $false -runRepoConfig $false -runReleaseBuild $false -keepTrying $true
+}
+
 function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true, [boolean] $keepTrying = $false)
 {
     do
