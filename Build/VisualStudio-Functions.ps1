@@ -153,17 +153,20 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                         $id = $_.id
                         $version = $_.version
                         
-                        #do not overwrite a $version$ reference (this happens in places like Naos.Protocol and is not something that should really come up anywhere...)
+                        #do not overwrite a $version$ reference (this happens in places like referencing a domain library in the test's DummyFactory where the versions should be identical)
                         if ($version -ne '$version$')
                         {
                             $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ?{$_.id -eq $id}
                         }
+                        else
+                        {
+                            $matchingPackagesConfigNode = $null
+                        }
                         
-                        if (($matchingPackagesConfigNode -ne $null) -and (($version -ne '$version$')))
+                        if ($matchingPackagesConfigNode -ne $null)
                         {
                             $newVersion = $matchingPackagesConfigNode.version
-                            #figure out how to update with the ( [ , etc...
-                            $splitChars = ,'[',']','(',')',','
+                            $splitChars = ,'[',']','(',')',',' # this is to deal with potential version constraining like (1.0,) etc...
                             $splitOutVersion = $version.Split($splitChars, [System.StringSplitOptions]::RemoveEmptyEntries)
                             $currentVersion = $null
                             if ($splitOutVersion.Length -eq 1)
