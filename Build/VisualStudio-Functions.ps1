@@ -159,7 +159,7 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                             $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ?{$_.id -eq $id}
                         }
                         
-                        if ($matchingPackagesConfigNode -ne $null)
+                        if (($matchingPackagesConfigNode -ne $null) -and (($version -ne '$version$')))
                         {
                             $newVersion = $matchingPackagesConfigNode.version
                             #figure out how to update with the ( [ , etc...
