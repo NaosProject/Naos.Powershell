@@ -1,14 +1,15 @@
 $visualStudioConstants = @{
-    Bootstrappers = @{
-        Bootstrapper = 'Bootstrapper';
-        Domain       = 'Domain';
-        Feature      = 'Feature';
-        Recipe       = 'Recipe';
-        Test         = 'Test';
-    }
+	Bootstrappers = @{
+		Bootstrapper = 'Bootstrapper';
+		Domain = 'Domain';
+		Feature = 'Feature';
+		Recipe = 'Recipe';
+		Test = 'Test';
+	}
 }
 
-function VisualStudio-DeepCleanSolution() {
+function VisualStudio-DeepCleanSolution()
+{
     $solution = $DTE.Solution
     $solutionFilePath = $solution.FileName
     
@@ -19,116 +20,23 @@ function VisualStudio-DeepCleanSolution() {
     MsBuild-CleanRelease -solutionFilePath $solutionFilePath
     
     $solutionDirectory = Split-Path $solutionFilePath
-    $objDirectories = ls $solutionDirectory -Recurse | ? { $_.PsIsContainer -and ($_.Name -eq 'obj') } | %{ $_.FullName }
-    $binDirectories = ls $solutionDirectory -Recurse | ? { $_.PsIsContainer -and ($_.Name -eq 'bin') } | %{ $_.FullName }
+    $objDirectories = ls $solutionDirectory -Recurse | ?{$_.PsIsContainer -and ($_.Name -eq 'obj')} | %{$_.FullName}
+    $binDirectories = ls $solutionDirectory -Recurse | ?{$_.PsIsContainer -and ($_.Name -eq 'bin')} | %{$_.FullName}
     $objDirectories | %{ rm $_ -Force -Recurse; Write-Output "Removing directory (Force and Recurse) $_" }
     $binDirectories | %{ rm $_ -Force -Recurse; Write-Output "Removing directory (Force and Recurse) $_" }
 }
 
-function VisualStudio-PrePreCommit() {
+function VisualStudio-PrePreCommit()
+{
     VisualStudio-PreCommit -updateCorePackages $false -runRepoConfig $false -runReleaseBuild $false -keepTrying $true
 }
 
-# StarBang will do a force uninstall?
-function VisualStudio-UninstallPrefixStar([string] $prefix, [string] $projectName = $null) {    
-    if (($projectName -ne $null) -and ($projectName.StartsWith('.\'))) {
-        # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
-        $projectName = $projectName.SubString(2, $projectName.Length - 2)
-    }
-    
-    Write-Output ''
-    # Arrange
-    $solution = $DTE.Solution
-    $solutionFilePath = $solution.FileName
-    $solutionName = Split-Path $solution.FileName -Leaf
-    $organizationPrefix = $solutionName.Split('.')[0]
-    $solutionDirectory = Split-Path $solutionFilePath
-    $projectDirectories = New-Object 'System.Collections.Generic.List[String]'
-    if ([String]::IsNullOrWhitespace($projectName)) {
-        Write-Output "Identified following projects to check from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
-        Write-Output ''
-        $solution.Projects | ? { -not [String]::IsNullOrWhitespace($_.FullName) } | %{
-            $projectName = $_.ProjectName
-            $projectFilePath = $_.FullName
-            $projectDirectory = Split-Path $projectFilePath
-            $projectDirectories.Add($projectDirectory)
-            Write-Output "    - '$projectName' ($projectDirectory)"
-        }
-    }
-    else {
-        $projectDirectory = Join-Path $solutionDirectory $projectName
-        $projectDirectories.Add($projectDirectory)
-        Write-Output "Checking the following specified project from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
-        Write-Output ''
-        Write-Output "    - '$projectName' ($projectDirectory)"
-    }
-    Write-Output ''
-    
-    $packagesUninstalled = New-Object 'System.Collections.Generic.List[String]'
-    $projectDirectories | %{
-        $projectDirectory = $_
-        File-ThrowIfPathMissing -path $projectDirectory
-        
-        $projectName = Split-Path $projectDirectory -Leaf
-        Write-Output "Checking '$projectName'"
-        Write-Output ''
-        $packagesConfigFileName = 'packages.config'
-        $packagesConfigFile = Join-Path $projectDirectory $packagesConfigFileName
-        [xml] $packagesConfigXml = Get-Content $packagesConfigFile
-        $packagesToRemove = New-Object 'System.Collections.Generic.List[String]'
-        $packagesConfigXml.packages.package | %{
-            if ($_.Id.StartsWith($prefix))
-            {
-                $packagesToRemove.Add($_.Id)
-            }
-        } 
-
-        while ($packagesToRemove.Count -gt 0)
+function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true, [boolean] $keepTrying = $false)
+{
+    do
+    {
+        try
         {
-            $updatesToPackagesToRemove = New-Object 'System.Collections.Generic.List[String]'
-            $packagesToRemove | %{
-                try
-                {
-                    Uninstall-Package -Id $_ -project $projectName
-                    $updatesToPackagesToRemove.Add($_)
-                }
-                catch
-                {
-                }
-            }
-            
-            if ($updatesToPackagesToRemove.Count -eq 0)
-            {
-                Write-Output "There are packages to remove from $projectName."
-                $packagesToRemove | %{ Write-Output "     $_" }
-        ​
-                throw 'Could not find any matching packages that could be uninstalled.'
-            }
-            else
-            {
-                $updatesToPackagesToRemove | %{
-                    if (-not $packagesUninstalled.Contains($_))
-                    {
-                        $packagesUninstalled.Add($_)
-                    }
-                    
-                    $packagesToRemove.Remove($_)
-                }
-            }
-        }
-    }
-        
-    Write-Output ''
-    Write-Output 'Completed UninstallPrefixStar: (uninstall the following packages)' 
-    $packagesUninstalled | %{
-        Write-Output "    $_"            
-    }
-    Write-Output ''
-}
-
-function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true, [boolean] $keepTrying = $false) {
-    do {
-        try {
             $packagesConfigFileName = 'packages.config'
             $solution = $DTE.Solution
             $solutionFilePath = $solution.FileName
@@ -139,10 +47,11 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
 
             Write-Output "Checking for projects in solution directory '$solutionDirectory' that are NOT in solution '$solutionName' ($solutionFilePath)."
             $directoriesToIgnore = @($nuGetConstants.Directories.Packages, '.vs') # Directories that should not be considered when looking for rogue project directories on disk.
-            $projectsFromSolution = $solution.Projects | ? { -not [String]::IsNullOrWhitespace($_.FullName) } | %{ Split-Path $_.FullName }
-            $projectsOnDisk = ls $solutionDirectory | ? { $_.PSIsContainer } | ? { -not $directoriesToIgnore.Contains($_.Name) } | %{ $_.FullName }
-            $projectsOnDiskButNotSolution = $projectsOnDisk | ? { -not $projectsFromSolution.Contains($_) }
-            if ($projectsOnDiskButNotSolution.Count -ne 0) {
+            $projectsFromSolution = $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{ Split-Path $_.FullName }
+            $projectsOnDisk = ls $solutionDirectory | ?{ $_.PSIsContainer } | ?{-not $directoriesToIgnore.Contains($_.Name)} | %{ $_.FullName }
+            $projectsOnDiskButNotSolution = $projectsOnDisk | ?{ -not $projectsFromSolution.Contains($_) }
+            if ($projectsOnDiskButNotSolution.Count -ne 0)
+            {
                 $projectsOnDiskError = [String]::Join(', ', $projectsOnDiskButNotSolution)
                 throw "Founds project directories on disk that are not in the solution; $projectsOnDiskError"
             }
@@ -151,12 +60,13 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
 
             Write-Output "Adding any root files in ($solutionDirectory) as 'Solution Items'."
             Write-Output ''
-            $repoRootFiles = ls $solutionDirectory | ? { $(-not $_.PSIsContainer) -and $(-not $_.FullName.Contains('sln')) } | %{ $_.FullName }
+            $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.Contains('sln'))  } | %{$_.FullName}
             $repoRootFiles | %{
                 $filePath = $_
                 $solutionItemsFolderName = 'Solution Items'
-                $solutionItemsProject = $solution.Projects | ? { $_.ProjectName -eq $solutionItemsFolderName }
-                if ($solutionItemsProject -eq $null) {
+                $solutionItemsProject = $solution.Projects | ?{$_.ProjectName -eq $solutionItemsFolderName}
+                if ($solutionItemsProject -eq $null)
+                {
                     $solutionItemsProject = $solution.AddSolutionFolder($solutionItemsFolderName)
                 }
 
@@ -167,10 +77,12 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
 
             Write-Output "Running RepoConfig on ($solutionDirectory)."
             Write-Output ''
-            if ($runRepoConfig) {
+            if ($runRepoConfig)
+            {
                 VisualStudio-RepoConfig
             }
-            else {
+            else
+            {
                 Write-Output ' ! Skipping because (runRepoConfig -eq $false)'
             }
             Write-Output ''
@@ -178,7 +90,7 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
 
             Write-Output "Updating critical packages for all projects in solution '$solutionName' ($solutionFilePath)."
             Write-Output ''
-            $solution.Projects | ? { -not [String]::IsNullOrWhitespace($_.FullName) } | %{
+            $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
                 $projectName = $_.ProjectName
                 $projectFilePath = $_.FullName
                 $projectDirectory = Split-Path $projectFilePath
@@ -188,24 +100,31 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                 $packagesConfigXml.packages.package | %{
                     $packageId = $_.Id
                     $packageShouldBeAutoUpdated = $false
-                    if ($packageId.StartsWith($organizationPrefix)) {
-                        if ($packageId -eq "$organizationPrefix.Build.Analyzers") {
+                    if ($packageId.StartsWith($organizationPrefix))
+                    {
+                        if ($packageId -eq "$organizationPrefix.Build.Analyzers")
+                        {
                             $packageShouldBeAutoUpdated = $true
                         }
-                        if ($packageId -eq "$organizationPrefix.Build.Conventions.ReSharper") {
+                        if ($packageId -eq "$organizationPrefix.Build.Conventions.ReSharper")
+                        {
                             $packageShouldBeAutoUpdated = $true
                         }
-                        if ($packageId.StartsWith("$organizationPrefix.Bootstrapper")) {
+                        if ($packageId.StartsWith("$organizationPrefix.Bootstrapper"))
+                        {
                             $packageShouldBeAutoUpdated = $true
                         }
                     }
                     
-                    if ($packageShouldBeAutoUpdated) {
+                    if ($packageShouldBeAutoUpdated)
+                    {
                         Write-Output "        - Package '$packageId' should be checked for updates."
-                        if ($updateCorePackages) {
+                        if ($updateCorePackages)
+                        {
                             Install-Package -Id $packageId -ProjectName $projectName
                         }
-                        else {
+                        else
+                        {
                             Write-Output '        ! Skipping because (updateCorePackages -eq $false)'
                         }
                         Write-Output ''
@@ -219,7 +138,7 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
             VisualStudio-CheckNuGetPackageDependencies
 
             Write-Output "Updating recipe NuSpec dependency versions to match packages for all projects in solution '$solutionName' ($solutionFilePath)."
-            $solution.Projects | ? { -not [String]::IsNullOrWhitespace($_.FullName) } | %{
+            $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
                 $projectName = $_.ProjectName
                 $projectFilePath = $_.FullName
                 $projectDirectory = Split-Path $projectFilePath
@@ -235,25 +154,31 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                         $version = $_.version
                         
                         #do not overwrite a $version$ reference (this happens in places like referencing a domain library in the test's DummyFactory where the versions should be identical)
-                        if ($version -ne '$version$') {
-                            $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ? { $_.id -eq $id }
+                        if ($version -ne '$version$')
+                        {
+                            $matchingPackagesConfigNode = $packagesConfigContents.packages.package | ?{$_.id -eq $id}
                         }
-                        else {
+                        else
+                        {
                             $matchingPackagesConfigNode = $null
                         }
                         
-                        if ($matchingPackagesConfigNode -ne $null) {
+                        if ($matchingPackagesConfigNode -ne $null)
+                        {
                             $newVersion = $matchingPackagesConfigNode.version
-                            $splitChars = , '[', ']', '(', ')', ',' # this is to deal with potential version constraining like (1.0,) etc...
+                            $splitChars = ,'[',']','(',')',',' # this is to deal with potential version constraining like (1.0,) etc...
                             $splitOutVersion = $version.Split($splitChars, [System.StringSplitOptions]::RemoveEmptyEntries)
                             $currentVersion = $null
-                            if ($splitOutVersion.Length -eq 1) {
+                            if ($splitOutVersion.Length -eq 1)
+                            {
                                 $currentVersion = $splitOutVersion[0]
                             }
-                            elseif ($splitOutVersion.Length -eq 2) {
+                            elseif ($splitOutVersion.Length -eq 2)
+                            {
                                 $currentVersion = $splitOutVersion[1]
                             }
-                            else {
+                            else
+                            {
                                 throw "Version of package id '$id' ($version) in $packagesConfigPath was not a recognized structure."
                             }
                             
@@ -270,7 +195,8 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
             Write-Output ''
             Write-Output 'Building Release with Code Analysis'
             Write-Output ''
-            if ($runReleaseBuild) {
+            if ($runReleaseBuild)
+            {
                 $msBuildReleasePropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
                 $msBuildReleasePropertiesDictionary.Add('Configuration', 'release')
                 $msBuildReleasePropertiesDictionary.Add('DebugType', 'pdbonly')
@@ -279,7 +205,8 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                 $msBuildReleasePropertiesDictionary.Add('CodeAnalysisTreatWarningsAsErrors', $true)
                 MsBuild-Custom -customBuildFilePath $solutionFilePath -target 'Build' -customPropertiesDictionary $msBuildReleasePropertiesDictionary
             }
-            else {
+            else
+            {
                 Write-Output '! Skipping because (runReleaseBuild -eq $false)'
             }
 
@@ -287,13 +214,16 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
             Write-Output ''
             Write-Output 'Finished PreCommit checks, all is good.'
         }
-        catch {
+        catch
+        {
             $error = $_
             $errorString = $error.Exception.Message
             $commandPrefix = '; run '
-            if ($errorString.Contains($commandPrefix) -and ($errorString.Contains('Install-Package') -or $errorString.Contains('Uninstall-Package'))) {
+            if ($errorString.Contains($commandPrefix) -and ($errorString.Contains('Install-Package') -or $errorString.Contains('Uninstall-Package')))
+            {
                 $commandSplit = $errorString.Split(@($commandPrefix), [StringSplitOptions]::RemoveEmptyEntries)
-                if ($commandSplit.Length -ne 2) {
+                if ($commandSplit.Length -ne 2)
+                {
                     $commandSplit | %{
                         Write-Output $_
                     }
@@ -308,22 +238,28 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                 Write-Output $message
                 Write-Output "Run command [y]? $command"
                 $answer = Read-Host
-                if ($answer -eq 'y') {
+                if ($answer -eq 'y')
+                {
                     $commandSuccess = $false
-                    while (-not $commandSuccess) {
+                    while (-not $commandSuccess)
+                    {
                         $scriptBlock = [scriptblock]::Create("$command -ErrorAction Stop")
-                        try {
+                        try
+                        {
                             &$scriptBlock
                             $commandSuccess = $true
                         }
-                        catch {
+                        catch
+                        {
                             $commandError = $_
                             $commandErrorString = $commandError.Exception.Message
-                            if ($commandErrorString.StartsWith('Unable to uninstall')) {
+                            if ($commandErrorString.StartsWith('Unable to uninstall'))
+                            {
                                 $matchString = "because '([a-zA-Z.]+).[0-9]+"
                                 # Can be one or many packages - e.g. Unable to uninstall 'Newtonsoft.Json.9.0.1' because  'OBeautifulCode.AccountingTime.Serialization.Json.1.0.116, OBeautifulCode.Serialization.Json.1.0.16' depend on it.
                                 $wasMatch = $commandErrorString -match $matchString
-                                if ((-not $wasMatch) -or ($matches.Count -ne 2)) {
+                                if ((-not $wasMatch) -or ($matches.Count -ne 2))
+                                {
                                     Write-Output "Issue with parsing package from '$commandErrorString'."
                                     throw $commandError
                                 }
@@ -337,35 +273,41 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                                 Write-Output $commandErrorString
                                 Write-Output "Run command [y]? $commandAgain"
                                 $answer = Read-Host
-                                if ($answer -eq 'y') {
+                                if ($answer -eq 'y')
+                                {
                                     $scriptBlockAgain = [scriptblock]::Create("$commandAgain -ErrorAction Stop")
                                     &$scriptBlockAgain
                                 }
                             }
-                            else {
+                            else
+                            {
                                 throw $commandError
                             }
                         }
                     }
                 }
-                else {
+                else
+                {
                     throw $error
                 }
             }
-            else {
+            else
+            {
                 throw $error
             }
         }
     } while ($keepTrying)
 }
 
-function VisualStudio-VerifyEnvironment() {
+function VisualStudio-VerifyEnvironment()
+{
     # Designed to be a verification of the Visual Studio configuration, not strictly necessary to have all items but helps...
     
     $envEnableLegacyCodeAnalysisName = 'EnableLegacyCodeAnalysis'
-    $envEnableLegacyCodeAnalysisValue = [System.Environment]::GetEnvironmentVariable($envEnableLegacyCodeAnalysisName, [System.EnvironmentVariableTarget]::User)
+    $envEnableLegacyCodeAnalysisValue = [System.Environment]::GetEnvironmentVariable($envEnableLegacyCodeAnalysisName,[System.EnvironmentVariableTarget]::User)
     Write-Output "Checking for user environment variable '$envEnableLegacyCodeAnalysisName' set to 'true'."
-    if ($envEnableLegacyCodeAnalysisValue -ne $true) {
+    if ($envEnableLegacyCodeAnalysisValue -ne $true)
+    {
         Write-Error "Environment variable not set correctly (found value $envEnableLegacyCodeAnalysisValue); run this command from an Administrator Powershell Window: [System.Environment]::SetEnvironmentVariable('$envEnableLegacyCodeAnalysisName','$($true.ToString().ToLower())',[System.EnvironmentVariableTarget]::User)"
     }
     
@@ -382,17 +324,20 @@ function VisualStudio-VerifyEnvironment() {
         $treatedFilename = $untreatedFilename.Replace('.ps1', '[.]ps1')
         $regexMatchForDotSourcedFile = "^[.][ ].*$treatedFilename"
         $regexMatchResult = $profileText -match $regexMatchForDotSourcedFile
-        if (($regexMatchResult -eq $null) -or ($regexMatchResult.Length -eq 0) -or (-not $regexMatchResult[0].EndsWith($untreatedFilename))) {
+        if (($regexMatchResult -eq $null) -or ($regexMatchResult.Length -eq 0) -or (-not $regexMatchResult[0].EndsWith($untreatedFilename)))
+        {
             Write-Error "The profile for Visual Studio Package Manager Console located at '$profile' should contain a 'dot-source' reference to '$untreatedFilename' in Naos.Powershell repo Build folder; e.g. '. C:\Source\Naos\Naos.Powershell\Build\$untreatedFilename'"
         }
     }
 }
 
-function VisualStudio-ClearNuGetCache() {
+function VisualStudio-ClearNuGetCache()
+{
     &$NuGetExeFilePath locals all -clear
 }
 
-function VisualStudio-RestoreNuGetPackages() {
+function VisualStudio-RestoreNuGetPackages()
+{
     $solution = $DTE.Solution
     $solutionFilePath = $solution.FileName
     $solutionDirectory = Split-Path $solutionFilePath
@@ -409,7 +354,7 @@ function VisualStudio-RestoreNuGetPackages() {
         #&$NuGetExeFilePath restore $localMappedPath        
         
         $packagesDirectory = Join-Path $mappedDrive $nuGetConstants.Directories.Packages
-        $csProjs = ls $mappedDrive -Filter '*.csproj' -Recurse | %{ $_.FullName }
+        $csProjs = ls $mappedDrive -Filter '*.csproj' -Recurse | %{$_.FullName}
         $csProjs | %{
             Write-Output "Calling restore on '$solutionFilePath' project via '$_' to ensure no path too long problems."
             &$NuGetExeFilePath restore $_ -PackagesDirectory $packagesDirectory
@@ -419,8 +364,10 @@ function VisualStudio-RestoreNuGetPackages() {
     File-RunScriptBlockMappingDirectoryToDrive -directoryPath $solutionDirectory -scriptBlock $restoreCommand
 }
 
-function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [boolean] $uninstall = $false) {
-    if (($projectName -ne $null) -and ($projectName.StartsWith('.\'))) {
+function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [boolean] $uninstall = $false)
+{
+    if (($projectName -ne $null) -and ($projectName.StartsWith('.\')))
+    {
         # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
         $projectName = $projectName.SubString(2, $projectName.Length - 2)
     }
@@ -433,11 +380,12 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     $organizationPrefix = $solutionName.Split('.')[0]
     $solutionDirectory = Split-Path $solutionFilePath
 
-    $projectDirectories = New-Object 'System.Collections.Generic.List[String]'
-    if ([String]::IsNullOrWhitespace($projectName)) {
+	$projectDirectories = New-Object 'System.Collections.Generic.List[String]'
+    if ([String]::IsNullOrWhitespace($projectName))
+    {
         Write-Output "Identified following projects to check from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
         Write-Output ''
-        $solution.Projects | ? { -not [String]::IsNullOrWhitespace($_.FullName) } | %{
+        $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
             $projectName = $_.ProjectName
             $projectFilePath = $_.FullName
             $projectDirectory = Split-Path $projectFilePath
@@ -445,7 +393,8 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             Write-Output "    - '$projectName' ($projectDirectory)"
         }
     }
-    else {
+    else
+    {
         $projectDirectory = Join-Path $solutionDirectory $projectName
         $projectDirectories.Add($projectDirectory)
         Write-Output "Checking the following specified project from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
@@ -473,13 +422,16 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $packageIdsInProject = New-Object 'System.Collections.Generic.List[String]'
         $packagesConfigXml.packages.package | %{
             $packageIdsInProject.Add($_.Id)
-            if ($packageIdToVersionListMap.ContainsKey($_.Id)) {
+            if ($packageIdToVersionListMap.ContainsKey($_.Id))
+            {
                 $versionList = $packageIdToVersionListMap[$_.Id]
-                if (-not $versionList.Contains($_.Version)) {
+                if (-not $versionList.Contains($_.Version))
+                {
                     $versionList.Add($_.Version)
                 }
             }
-            else {
+            else
+            {
                 $newVersionList = New-Object 'System.Collections.Generic.List[String]'
                 $newVersionList.Add($_.Version)
                 $packageIdToVersionListMap.Add($_.Id, $newVersionList)
@@ -492,7 +444,8 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $projectPackageFilePath = Join-Path (Split-Path $_) $packagesConfigFileName
             [xml] $projectPackageFileXml = Get-Content $projectPackageFilePath
             $projectPackageFileXml.packages.package | %{
-                if (($_.developmentDependency -ne $true) -and (-not $expectedPackageIdsFromProjectReferences.ContainsKey($_.Id))) {
+                if (($_.developmentDependency -ne $true) -and (-not $expectedPackageIdsFromProjectReferences.ContainsKey($_.Id)))
+                {
                     $expectedPackageIdsFromProjectReferences.Add($_.Id, $_.Version)
                 }
             }
@@ -507,16 +460,18 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         $expectedPackageIdsFromProjectReferences.Keys | %{
             $id = $_
             $version = $expectedPackageIdsFromProjectReferences[$id]
-            if (-not $packageIdsInProject.Contains($id)) {
+            if (-not $packageIdsInProject.Contains($id))
+            {
                 throw "    Expected a NuGet reference to $_; run Install-Package -Id $id -Version $version -ProjectName $projectName"
             }
         }
         
         $bootstrapperPrefix = "$organizationPrefix.Bootstrapper"
-        $bootstrapperPackages = $packagesConfigXml.packages.package | ? { $_.Id.StartsWith($bootstrapperPrefix) }
+        $bootstrapperPackages = $packagesConfigXml.packages.package | ?{$_.Id.StartsWith($bootstrapperPrefix)}
         
         Write-Output "    - Confirm at least one bootstrapper package is installed, prefixed by '$bootstrapperPrefix'."
-        if ((-not $projectName.StartsWith($bootstrapperPrefix)) -and ($bootstrapperPackages.Count -eq 0)) {
+        if ((-not $projectName.StartsWith($bootstrapperPrefix)) -and ($bootstrapperPackages.Count -eq 0))
+        {
             throw "      Did not find any 'bootstrapper' packages in ($packagesConfigFile)."
         }
 
@@ -537,10 +492,12 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $blacklistFile = $_
             $blacklistFileContents = Get-Content $blacklistFile
             $blacklistLines = New-Object 'System.Collections.Generic.List[String]'
-            if (-not [String]::IsNullOrWhitespace($blacklistFileContents)) {
+            if (-not [String]::IsNullOrWhitespace($blacklistFileContents))
+            {
                 $blacklistFileContents.Split([Environment]::NewLine, [StringSplitOptions]::RemoveEmptyEntries) | %{
                     $blacklistStagingLine = $_
-                    if (-not [String]::IsNullOrWhitespace($blacklistStagingLine)) {
+                    if (-not [String]::IsNullOrWhitespace($blacklistStagingLine))
+                    {
                         $blacklistLines.Add($blacklistStagingLine)
                     }
                 }
@@ -549,21 +506,26 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $blacklist = New-Object 'System.Collections.Generic.Dictionary[String,String]'
             $blacklistLines | %{
                 $blacklistLine = $_
-                if ($(-not $blacklistLine.StartsWith('#')) -and (-not [String]::IsNullOrWhitespace($blacklistLine))) {
+                if ($(-not $blacklistLine.StartsWith('#')) -and (-not [String]::IsNullOrWhitespace($blacklistLine)))
+                {
                     $blacklistReplacement = $null
                     
-                    if (-not $blacklistLine.StartsWith($regexPrefixToken)) {
+                    if (-not $blacklistLine.StartsWith($regexPrefixToken))
+                    {
                         $arrowSplit = $blacklistLine.Split('>')
                         $blacklistName = $arrowSplit[0]
-                        if ($arrowSplit.Length -gt 1) {
+                        if ($arrowSplit.Length -gt 1)
+                        {
                             $blacklistReplacement = $arrowSplit[1]
                         }
                     }
-                    else {
+                    else
+                    {
                         $blacklistName = $blacklistLine
                     }
                     
-                    if (-not $blacklist.ContainsKey($blacklistName)) {
+                    if (-not $blacklist.ContainsKey($blacklistName))
+                    {
                         $blacklist.Add($blacklistName, $blacklistReplacement)
                     }
                 }
@@ -590,17 +552,21 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
                 $packageId = $_.Id
                 $blacklist.Keys | %{
                     $blackListKey = $_
-                    if ($($blackListKey.StartsWith($regexPrefixToken) -and $($packageId -match $blackListKey.Replace($regexPrefixToken, '')) -or $($packageId -eq $blackListKey))) {
+                    if ($($blackListKey.StartsWith($regexPrefixToken) -and $($packageId -match $blackListKey.Replace($regexPrefixToken, '')) -or $($packageId -eq $blackListKey)))
+                    {
                         $blacklistEntry = $blacklist[$blackListKey]
-                        if ($uninstall -eq $true) {
+                        if ($uninstall -eq $true)
+                        {
                             $uninstallPackages.Add($packageId)
-                            if ($blacklistEntry -ne $null) {
+                            if ($blacklistEntry -ne $null)
+                            {
                                 $replacementPackages.Add($blacklistEntry)
                             }
 
                             #throw "Project - $projectName contains blacklisted package (ID: $($_.Id), Version: $($_.Version))"
                         }
-                        else {
+                        else
+                        {
                             throw "          Installed package '$packageId' matches blacklist entry '$blacklistKey'; run Uninstall-Package -Id $packageId -ProjectName $projectName"
                         }
                     }
@@ -610,20 +576,25 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
         
         $projectName = Split-Path $projectDirectory -Leaf
         
-        if ($uninstall -eq $true) {
-            if ($uninstallPackages.Count -gt 0) {
+        if ($uninstall -eq $true)
+        {
+            if ($uninstallPackages.Count -gt 0)
+            {
                 Write-Output "    - Uninstall detected blacklist packages."
                 $uninstallPackages | %{
-                    if (-not [String]::IsNullOrWhitespace($_)) {
+                    if (-not [String]::IsNullOrWhitespace($_))
+                    {
                         Uninstall-Package -Id $_ -ProjectName $projectName
                     }
                 }
             }
             
-            if ($replacementPackages.Count -gt 0) {
+            if ($replacementPackages.Count -gt 0)
+            {
                 Write-Output "    - Install replacement packages for detected blacklisted packages."
                 $replacementPackages | %{
-                    if (-not [String]::IsNullOrWhitespace($_)) {
+                    if (-not [String]::IsNullOrWhitespace($_))
+                    {
                         Install-Package -Id $_ -ProjectName $projectName
                     }
                 }
@@ -633,7 +604,8 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     
     $packageIdToVersionListMap.Keys | %{
         $value = $packageIdToVersionListMap[$_]
-        if ($value.Count -gt 1) {
+        if ($value.Count -gt 1)
+        {
             throw "Packages must all be the same verison within the solution; make the version of '$_' consistent across projects."
         }
     }
@@ -643,22 +615,27 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     Write-Output ''
 }
 
-function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testProjectName = $null, [boolean] $includeSerializationTesting = $true) {    
-    if ([string]::IsNullOrWhitespace($projectName)) {
+function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testProjectName = $null, [boolean] $includeSerializationTesting = $true)
+{    
+    if ([string]::IsNullOrWhitespace($projectName))
+    {
         throw 'Specify Project Name to operate on.'
     }
     
-    if ($projectName.StartsWith('.\')) {
+    if ($projectName.StartsWith('.\'))
+    {
         # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
         $projectName = $projectName.SubString(2, $projectName.Length - 2)
     }
     
-    if ($testProjectName.StartsWith('.\')) {
+    if ($testProjectName.StartsWith('.\'))
+    {
         # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
         $testProjectName = $testProjectName.SubString(2, $testProjectName.Length - 2)
     }
     
-    if ([string]::IsNullOrWhitespace($testProjectName)) {
+    if ([string]::IsNullOrWhitespace($testProjectName))
+    {
         $testProjectName = $projectName + ".Test"
     }
 
@@ -680,26 +657,31 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     $codeGenTempDirectory = File-CreateTempDirectory -prefix 'ObcCodeGen'
     $codeGenConsolePackageName = 'OBeautifulCode.CodeGen.Console'
     &$NuGetExeFilePath install $codeGenConsolePackageName -OutputDirectory $codeGenTempDirectory
-    if ($lastexitcode -ne 0) {
+    if ($lastexitcode -ne 0)
+    {
         throw "Failure running NuGet.exe to download latest '$codeGenConsolePackageName'."
     }
     
     $codeGenConsoleDirObjects = ls $codeGenTempDirectory -Filter "$codeGenConsolePackageName*"
     $codeGenConsoleDirPaths = New-Object 'System.Collections.Generic.List[String]'
-    if ($codeGenConsoleDirObjects.PSIsContainer) {
+    if ($codeGenConsoleDirObjects.PSIsContainer)
+    {
         $codeGenConsoleDirObjects | %{ $_.FullName } | Sort-Object -Descending | %{ $codeGenConsoleDirPaths.Add($_) }
     }
-    else {
+    else
+    {
         # only one directory present.
         $codeGenConsoleDirPaths = $codeGenConsoleDirPaths.Add($codeGenConsoleDirObjects)
     }
    
-    if (($codeGenConsoleDirPaths -eq $null) -or ($codeGenConsoleDirPaths.Count -eq 0)) {
+    if (($codeGenConsoleDirPaths -eq $null) -or ($codeGenConsoleDirPaths.Count -eq 0))
+    {
         throw "Expected to find an installed package '$codeGenConsolePackageName' at ($codeGenTempDirectory); nothing was returned."
     }
     
     $codeGenConsoleLatestVersionRootDirectory = $codeGenConsoleDirPaths[0]
-    if ([String]::IsNullOrWhitespace($codeGenConsoleLatestVersionRootDirectory)) {
+    if ([String]::IsNullOrWhitespace($codeGenConsoleLatestVersionRootDirectory))
+    {
         throw "Expected to find an installed package '$codeGenConsolePackageName' at ($codeGenTempDirectory); first entry was empty."
     }
     
@@ -713,41 +695,47 @@ function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testP
     File-ThrowIfPathMissing -path $codeGenConsoleFilePath -because "Package should contain the OBC.CodeGen.Console.exe at ($codeGenConsoleFilePath)."
 
     &$codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory /includeSerializationTesting=$includeSerializationTesting /recipeConditionalCompilationSymbol=$solutionConditionalCompilationSymbol
-    if ($lastexitcode -ne 0) {
+    if ($lastexitcode -ne 0)
+    {
         throw "Failure running: $codeGenConsoleFilePath model /projectDirectory=$projectDirectory /testProjectDirectory=$testProjectDirectory /projectOutputDirectory=$projectOutputDirectory /includeSerializationTesting=$includeSerializationTesting /recipeConditionalCompilationSymbol=$solutionConditionalCompilationSymbol"
     }
 
     $projectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $projectFilePath
     $testProjectFilesFromCsproj = VisualStudio-GetFilePathsFromProject -projectFilePath $testProjectFilePath
     
-    $projectSouceFiles = ls $projectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ? { -not $_.Contains('\obj\') }
-    $testProjectSourceFiles = ls $testProjectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ? { -not $_.Contains('\obj\') }
+    $projectSouceFiles = ls $projectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ?{-not $_.Contains('\obj\')}
+    $testProjectSourceFiles = ls $testProjectDirectory -filter '*.cs' -recurse | %{ $_.FullName } | ?{-not $_.Contains('\obj\')}
     
-    $projectSouceFiles | ? { -not $projectFilesFromCsproj.Contains($_) } | %{ $project.ProjectItems.AddFromFile($_) | Out-Null }
-    $testProjectSourceFiles | ? { -not $testProjectFilesFromCsproj.Contains($_) } | %{ $testProject.ProjectItems.AddFromFile($_) | Out-Null }
+    $projectSouceFiles | ?{ -not $projectFilesFromCsproj.Contains($_) } | %{ $project.ProjectItems.AddFromFile($_) | Out-Null }
+    $testProjectSourceFiles | ?{ -not $testProjectFilesFromCsproj.Contains($_) } | %{ $testProject.ProjectItems.AddFromFile($_) | Out-Null }
     
     Write-Output "Removing temporary directory ($codeGenTempDirectory)."
     Remove-Item $codeGenTempDirectory -Recurse -Force
 }
 
-function VisualStudio-DeleteAllCodeGenForModelsDesignerFiles([string] $projectName, [string] $testProjectName = $null, [boolean] $doNotRemoveOnlyRemoveContents = $false) {
-    if ([string]::IsNullOrWhitespace($projectName)) {
+function VisualStudio-DeleteAllCodeGenForModelsDesignerFiles([string] $projectName, [string] $testProjectName = $null, [boolean] $doNotRemoveOnlyRemoveContents = $false)
+{
+    if ([string]::IsNullOrWhitespace($projectName))
+    {
         throw 'Specify Project Name to operate on.'
     }
 
     Write-Output "Start removing all CodeGen for Models Designer Files."
     
-    if ($projectName.StartsWith('.\')) {
+    if ($projectName.StartsWith('.\'))
+    {
         # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
         $projectName = $projectName.SubString(2, $projectName.Length - 2)
     }
     
-    if ($testProjectName.StartsWith('.\')) {
+    if ($testProjectName.StartsWith('.\'))
+    {
         # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
         $testProjectName = $testProjectName.SubString(2, $testProjectName.Length - 2)
     }
     
-    if ([string]::IsNullOrWhitespace($testProjectName)) {
+    if ([string]::IsNullOrWhitespace($testProjectName))
+    {
         $testProjectName = $projectName + ".Test"
     }
 
@@ -765,40 +753,48 @@ function VisualStudio-DeleteAllCodeGenForModelsDesignerFiles([string] $projectNa
     $testProject = VisualStudio-GetProjectFromSolution -projectFilePath $testProjectFilePath
     
     $genToken = 'Generated using OBeautifulCode.CodeGen'
-    $projectDesignerFiles = ls $projectDirectory -Filter '*.designer.cs' -Recurse | %{ $_.FullName } | ? { -not $_.PSIsContainer } | ? { -not $_.Contains('\.recipes\') } | ? { (Select-String -Path $_ -Pattern $genToken) -ne $null }    
-    $projectTestDesignerFiles = ls $testProjectDirectory -Filter '*.designer.cs' -Recurse | %{ $_.FullName } | ? { -not $_.PSIsContainer } | ? { -not $_.Contains('\.recipes\') } | ? { (Select-String -Path $_ -Pattern $genToken) -ne $null }
+    $projectDesignerFiles = ls $projectDirectory -Filter '*.designer.cs' -Recurse | %{ $_.FullName } | ?{-not $_.PSIsContainer} | ?{ -not $_.Contains('\.recipes\') } | ?{ (Select-String -Path $_ -Pattern $genToken) -ne $null }    
+    $projectTestDesignerFiles = ls $testProjectDirectory -Filter '*.designer.cs' -Recurse | %{ $_.FullName } | ?{-not $_.PSIsContainer} | ?{ -not $_.Contains('\.recipes\') } | ?{ (Select-String -Path $_ -Pattern $genToken) -ne $null }
     
     $projectDesignerFiles | %{
-        if ($doNotRemoveOnlyRemoveContents -eq $true) {
+        if ($doNotRemoveOnlyRemoveContents -eq $true)
+        {
             Write-Output "Removing contents $_"
             '' | Out-File $_
         }
-        else {
+        else
+        {
             Write-Output "Removing $_"
             $item = $solution.FindProjectItem($_)
-            if ($item -ne $null) {
+            if ($item -ne $null)
+            {
                 $item.Remove()
             }
             
-            if (Test-Path $_) {
+            if (Test-Path $_)
+            {
                 rm $_ -Force
             }
         }
     }
     
     $projectTestDesignerFiles | %{
-        if ($doNotRemoveOnlyRemoveContents -eq $true) {
+        if ($doNotRemoveOnlyRemoveContents -eq $true)
+        {
             Write-Output "Removing contents $_"
             '' | Out-File $_
         }
-        else {
+        else
+        {
             Write-Output "Removing $_"
             $item = $solution.FindProjectItem($_)
-            if ($item -ne $null) {
+            if ($item -ne $null)
+            {
                 $item.Remove()
             }
             
-            if (Test-Path $_) {
+            if (Test-Path $_)
+            {
                 rm $_ -Force
             }
         }
@@ -807,7 +803,8 @@ function VisualStudio-DeleteAllCodeGenForModelsDesignerFiles([string] $projectNa
     Write-Output "Done removing all CodeGen for Models Designer Files."
 }
 
-function VisualStudio-RepoConfig([boolean] $PreRelease = $true) {
+function VisualStudio-RepoConfig([boolean] $PreRelease = $true)
+{
     # Arrange
     $solution = $DTE.Solution
     $solutionDirectory = Split-Path $solution.FileName
@@ -844,7 +841,8 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true) {
         Write-Output " - Created $stateFilePath"
         Write-Output " < No state file found"
     }
-    else {
+    else
+    {
         Write-Output "------------------------------------------------------------------------------------------------"
         Write-Output " - Target Repository Path: $solutionDirectory"
         Write-Output " - State File Path: $stateFilePath"
@@ -879,11 +877,12 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true) {
     if ($PreRelease) {
         &$NuGetExeFilePath install $repoConfigPackageId -OutputDirectory $tempDirectory -PreRelease | Out-File $nugetLog 2>&1
     }
-    else {
+    else{
         &$NuGetExeFilePath install $repoConfigPackageId -OutputDirectory $tempDirectory | Out-File $nugetLog 2>&1
     }
 
-    if ($lastexitcode -ne 0) {
+    if ($lastexitcode -ne 0)
+    {
         throw "Failure running NuGet.exe to download latest '$repoConfigPackageId'."
     }
     
@@ -913,11 +912,13 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true) {
     $alreadyUpToDate = $stateFileXml.repoConfigState.version -eq $repoConfigPackageVersion
 
     # Run instructions and clean up                                                         #
-    if ($alreadyUpToDate) {
+    if ($alreadyUpToDate)
+    {
         Write-Output "------------------------------------------------------------------------------------------------"
         Write-Output " - Installed version of $repoConfigPackageId ($repoConfigPackageVersion) is the latest version."
     }
-    else {
+    else
+    {
         Write-Output "------------------------------------------------------------------------------------------------"
         Write-Output " > Running specific update instructions from version $repoConfigPackageVersion"
         Write-Output ''
@@ -936,8 +937,10 @@ function VisualStudio-RepoConfig([boolean] $PreRelease = $true) {
     Write-Output "################################################################################################"
 }
 
-function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $null) {
-    if (($projectName -ne $null) -and ($projectName.StartsWith('.\'))) {
+function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $null)
+{
+    if (($projectName -ne $null) -and ($projectName.StartsWith('.\')))
+    {
         # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
         $projectName = $projectName.SubString(2, $projectName.Length - 2)
     }
@@ -950,11 +953,12 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
     $organizationPrefix = $solutionName.Split('.')[0]
     $solutionDirectory = Split-Path $solutionFilePath
 
-    $projectDirectories = New-Object 'System.Collections.Generic.List[String]'
-    if ([String]::IsNullOrWhitespace($projectName)) {
+	$projectDirectories = New-Object 'System.Collections.Generic.List[String]'
+    if ([String]::IsNullOrWhitespace($projectName))
+    {
         Write-Output "Identified following projects to run on from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
         Write-Output ''
-        $solution.Projects | ? { -not [String]::IsNullOrWhitespace($_.FullName) } | ? { $_.ProjectName.Contains('.Bootstrapper.') } | %{
+        $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | ?{$_.ProjectName.Contains('.Bootstrapper.')} | %{
             $projectName = $_.ProjectName
             $projectFilePath = $_.FullName
             $projectDirectory = Split-Path $projectFilePath
@@ -962,7 +966,8 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
             Write-Output "    - '$projectName' ($projectDirectory)"
         }
     }
-    else {
+    else
+    {
         $projectDirectory = Join-Path $solutionDirectory $projectName
         $projectDirectories.Add($projectDirectory)
         Write-Output "Running on the following specified project from solution '$(Split-Path $solutionFilePath -Leaf)' ($solutionFilePath)."
@@ -983,10 +988,12 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
         [xml] $recipeNuSpecXml = Get-Content $recipeNuSpecFilePath
 
         $deps = $null
-        if ($recipeNuSpecXml.package.metadata.dependencies.dependency -eq $null) {
+        if ($recipeNuSpecXml.package.metadata.dependencies.dependency -eq $null)
+        {
             throw "Empty 'dependencies' node is not supported yet, please add a dummy entry (e.g. <dependency id=`"JUST TO MAKE THE XML WORK`" version=`"1.0.0.0`" />) to the 'package->metadata->dependencies' node in ($recipeNuSpecFilePath) and retry."
         }
-        else {
+        else
+        {
             $deps = $recipeNuSpecXml.package.metadata.dependencies
         }
         
@@ -994,14 +1001,16 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
 
         $projectFilePath = (ls $projectDirectory -Filter *.csproj).FullName
         $projectReferences = MsBuild-GetProjectReferences -projectFilePath $projectFilePath -recursive $true
-        if ($projectFilePath.Contains('.Core.') -and $projectReferences.Count -ne 0) {
+        if ($projectFilePath.Contains('.Core.') -and $projectReferences.Count -ne 0)
+        {
             throw "'Core' bootstrappers cannot reference other bootstrappers; '$projectFilePath' has project references, remove and try again."
         }
             
         $referencedPackagesConfig = New-Object 'System.Collections.Generic.List[String]'
         $projectReferences | %{
             $refProjectFilePath = $_
-            if (-not $refProjectFilePath.Contains('.Core.')) {
+            if (-not $refProjectFilePath.Contains('.Core.'))
+            {
                 throw "Bootstrappers cannot reference other NON-CORE bootstrappers; '$projectFilePath' references '$refProjectFilePath', remove and try again."
             }
         
@@ -1024,20 +1033,22 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
             [void]$deps.AppendChild($refDependencyElement)
         }
         
-        $packagesConfigXml.packages.package | %{
+        $packagesConfigXml.packages.package | % {
             # Write-Output "<dependency id=`"$($_.Id)`" version=`"$($_.Version)`" />"
             $newElement = $recipeNuSpecXml.CreateElement('dependency')
             $newElement.SetAttribute('id', $_.Id)
             
             $versionToSet = $_.Version
-            if ((-not $_.Id.StartsWith('OBeautifulCode')) -and (-not $_.Id.StartsWith('Naos')) -and (-not $_.Id.StartsWith($organizationPrefix))) {
+            if ((-not $_.Id.StartsWith('OBeautifulCode')) -and (-not $_.Id.StartsWith('Naos')) -and (-not $_.Id.StartsWith($organizationPrefix)))
+            {
                 $versionToSet = "[$($_.Version)]"
             }
 
             $newElement.SetAttribute('version', $versionToSet)
 
             # do not use add anything that is already covered via a project reference dependency
-            if (-not $referencedPackagesConfig.Contains($_.Id)) {
+            if (-not $referencedPackagesConfig.Contains($_.Id))
+            {
                 [void]$deps.AppendChild($newElement)
             }
         }
@@ -1045,16 +1056,18 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
         $targetFramework = $(MsBuild-GetTargetFramework -projectFilePath $projectFilePath).Replace('v', 'net').Replace('.', '')
 
         $frameworkAssemblies = $null
-        if ($recipeNuSpecXml.package.metadata.frameworkAssemblies.frameworkAssembly -eq $null) {
+        if ($recipeNuSpecXml.package.metadata.frameworkAssemblies.frameworkAssembly -eq $null)
+        {
             throw "Empty 'frameworkAssemblies' node is not supported yet, please add a dummy entry (e.g. <frameworkAssembly assemblyName=`"JUST TO MAKE THE XML WORK`" targetFramework=`"net462`" />) to the 'package->metadata->frameworkAssemblies' node in ($recipeNuSpecFilePath) and retry."
         }
-        else {
+        else
+        {
             $frameworkAssemblies = $recipeNuSpecXml.package.metadata.frameworkAssemblies
         }
         
         $frameworkAssemblies.RemoveAll()
         $projectObject = VisualStudio-GetProjectFromSolution -projectFilePath $projectFilePath
-        $projectObject.Object.References | ? { ($_.Identity -ne 'System.Core') -and ($_.Identity.StartsWith('System.') -or ($_.Identity -eq 'Microsoft.CSharp')) -and $_.Path.Contains('Reference Assemblies\Microsoft\Framework\') } | %{
+        $projectObject.Object.References | ?{($_.Identity -ne 'System.Core') -and ($_.Identity.StartsWith('System.') -or ($_.Identity -eq 'Microsoft.CSharp')) -and $_.Path.Contains('Reference Assemblies\Microsoft\Framework\')} | %{
             $assemblyName = $_.Identity
             $newElement = $recipeNuSpecXml.CreateElement('frameworkAssembly')
             $newElement.SetAttribute('assemblyName', $assemblyName)
@@ -1066,55 +1079,68 @@ function VisualStudio-SyncBootstrapperRecipeNuSpecs([string] $projectName = $nul
     }
 }
 
-function VisualStudio-GetFilePathsFromProject([string] $projectFilePath) {
-    [System.IO.File]::ReadAllLines($projectFilePath) | ? { $_.Contains('<Compile') } | %{ $_ -match 'Include="((.*))"' | out-null; $matches[0] } | %{ $_.Replace('Include="', '').Replace('"', '') } |
-    %{ Join-Path (Split-Path $projectFilePath) $_ }
+function VisualStudio-GetFilePathsFromProject([string] $projectFilePath)
+{
+     [System.IO.File]::ReadAllLines($projectFilePath) | ?{$_.Contains('<Compile')} | %{$_ -match 'Include="((.*))"'|out-null;$matches[0]} | %{$_.Replace('Include="', '').Replace('"', '')} |
+     %{Join-Path (Split-Path $projectFilePath) $_}
 }
 
-function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, [string] $projectName = $null, [boolean] $throwIfNotFound = $true) {
+function VisualStudio-GetProjectFromSolution([string] $projectFilePath = $null, [string] $projectName = $null, [boolean] $throwIfNotFound = $true)
+{
     $solution = $DTE.Solution
     $result = $null
 
-    if ((-not [String]::IsNullOrWhitespace($projectFilePath)) -and (-not [String]::IsNullOrWhitespace($projectName))) {
+    if ((-not [String]::IsNullOrWhitespace($projectFilePath)) -and (-not [String]::IsNullOrWhitespace($projectName)))
+    {
         throw "Please only specify 'projectFilePath' ($projectFilePath) or 'projectName' ($projectName) but NOT both"
     }
-    elseif ([String]::IsNullOrWhitespace($projectFilePath) -and [String]::IsNullOrWhitespace($projectName)) {
+    elseif ([String]::IsNullOrWhitespace($projectFilePath) -and [String]::IsNullOrWhitespace($projectName))
+    {
         throw "Please only specify 'projectFilePath' ($projectFilePath) or 'projectName' ($projectName) but NOT both"
     }
-    elseif ((-not [String]::IsNullOrWhitespace($projectFilePath)) -and [String]::IsNullOrWhitespace($projectName)) {
+    elseif ((-not [String]::IsNullOrWhitespace($projectFilePath)) -and [String]::IsNullOrWhitespace($projectName))
+    {
         $projectByFilePath = $null
         $solution.Projects | %{
-            if ($_.FullName -eq $projectFilePath) {
+            if ($_.FullName -eq $projectFilePath)
+            {
                 $projectByFilePath = $_
             }
         }
         
         $result = $projectByFilePath
     }
-    elseif ([String]::IsNullOrWhitespace($projectFilePath) -and (-not [String]::IsNullOrWhitespace($projectName))) {
+    elseif ([String]::IsNullOrWhitespace($projectFilePath) -and (-not [String]::IsNullOrWhitespace($projectName)))
+    {
         $projectByName = $null
         $solution.Projects | %{
-            if ($_.ProjectName -eq $projectName) {
+            if ($_.ProjectName -eq $projectName)
+            {
                 $projectByName = $_
             }
         }
         
         $result = $projectByName
     }
-    else {
+    else
+    {
         throw "Unexpected invalid input: 'projectFilePath' ($projectFilePath) or 'projectName' ($projectName)"
     }
 
-    if (($throwIfNotFound -eq $true) -and ($result -eq $null)) {
+    if (($throwIfNotFound -eq $true) -and ($result -eq $null))
+    {
         throw "Could not find project by name ($projectName) or path ($projectFilePath) in solution ($($solution.FullName))."
     }
-    else {
+    else
+    {
         return $result
     }
 }
 
-function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $projectKind, [boolean] $addTestProject = $true) {
-    if ([string]::IsNullOrWhitespace($projectName)) {
+function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] $projectKind, [boolean] $addTestProject = $true)
+{
+    if ([string]::IsNullOrWhitespace($projectName))
+    {
         throw "Invalid projectName: '$projectName'."
     }
     
@@ -1143,7 +1169,8 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tempDirectory = File-CreateTempDirectory -prefix $tempDirectoryPrefix
 
     &$NuGetExeFilePath install $packageIdTemplate -OutputDirectory $tempDirectory -PreRelease
-    if ($lastexitcode -ne 0) {
+    if ($lastexitcode -ne 0)
+    {
         throw "Failure running NuGet.exe to download latest '$packageIdTemplate'."
     }
 
@@ -1155,26 +1182,31 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $packageTemplateVersion = $packageDirectoryName.Replace("$packageIdTemplate.", '')
     
     $projectNameWithoutTestSuffix = $projectName
-    if ($projectNameWithoutTestSuffix.EndsWith('.Test')) {
+    if ($projectNameWithoutTestSuffix.EndsWith('.Test'))
+    {
         $projectNameWithoutTestSuffix = $projectNameWithoutTestSuffix.SubString(0, $projectNameWithoutTestSuffix.Length - 5)
     }
     
     $projectNameWithoutDomainOrTestSuffix = $projectName
-    if ($projectNameWithoutDomainOrTestSuffix.EndsWith('.Test')) {
+    if ($projectNameWithoutDomainOrTestSuffix.EndsWith('.Test'))
+    {
         $projectNameWithoutDomainOrTestSuffix = $projectNameWithoutDomainOrTestSuffix.SubString(0, $projectNameWithoutDomainOrTestSuffix.Length - 5)
     }
-    if ($projectNameWithoutDomainOrTestSuffix.EndsWith('.Domain')) {
+    if ($projectNameWithoutDomainOrTestSuffix.EndsWith('.Domain'))
+    {
         $projectNameWithoutDomainOrTestSuffix = $projectNameWithoutDomainOrTestSuffix.SubString(0, $projectNameWithoutDomainOrTestSuffix.Length - 7)
     }
     
     $projectNameClassNamePrefix = $projectNameWithoutDomainOrTestSuffix
-    if ($projectNameClassNamePrefix.EndsWith('.Serialization.Bson') -or $projectNameClassNamePrefix.EndsWith('.Serialization.Json')) {
+    if ($projectNameClassNamePrefix.EndsWith('.Serialization.Bson') -or $projectNameClassNamePrefix.EndsWith('.Serialization.Json'))
+    {
         $projectNameClassNamePrefix = $projectNameClassNamePrefix.SubString(0, $projectNameClassNamePrefix.Length - 19)
     }
     $projectNameClassNamePrefix = $projectNameClassNamePrefix.Replace("$organizationPrefix.", '').Replace('.', '')
     
     $projectNameWithoutSerializationSuffix = $projectName
-    if ($projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Bson') -or $projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Json')) {
+    if ($projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Bson') -or $projectNameWithoutSerializationSuffix.EndsWith('.Serialization.Json'))
+    {
         $projectNameWithoutSerializationSuffix = $projectNameWithoutSerializationSuffix.SubString(0, $projectNameWithoutSerializationSuffix.Length - 19)
     }
     
@@ -1194,7 +1226,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_ID]', $packageIdTemplate)
     $tokenReplacementList.Add('[VISUAL_STUDIO_TEMPLATE_PACKAGE_VERSION]', $packageTemplateVersion)
 
-    $templateFiles = ls $packageDirectory -Recurse | ? { -not $_.PSIsContainer } | %{ $_.FullName }
+    $templateFiles = ls $packageDirectory -Recurse | ?{-not $_.PSIsContainer} | %{$_.FullName}
 
     $templateFiles | %{
         $file = $_
@@ -1203,11 +1235,13 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
             $key = $_
             $replacementValue = $tokenReplacementList[$key]
             
-            if ($file.Contains($key)) {
+            if ($file.Contains($key))
+            {
                 $file = $file.Replace($key, $replacementValue)
             }
             
-            if ($contents.Contains($key)) {
+            if ($contents.Contains($key))
+            {
                 $contents = $contents.Replace($key, $replacementValue)
             }
         }
@@ -1222,21 +1256,25 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
 
     $isDomainProject = $false
     $project = $solution.AddFromTemplate($templateFilePath, $projectDirectory, $projectName, $false)
-    if ($projectKind -eq 'Domain') {
+    if ($projectKind -eq 'Domain')
+    {
         $isDomainProject = $true
     }
-    else {
+    else
+    {
         # if there is a domain project then add a reference
         $domainProjectName = "$organizationPrefix.$subsystemName.Domain"
         $domainProject = VisualStudio-GetProjectFromSolution -projectName $domainProjectName -throwIfNotFound $false
-        if ($domainProject -ne $null) {
-            # need to refetch project because $project is null when we get here
-            $project = VisualStudio-GetProjectFromSolution -projectName $projectName
+        if ($domainProject -ne $null)
+        {
+			# need to refetch project because $project is null when we get here
+			$project = VisualStudio-GetProjectFromSolution -projectName $projectName
             $project.Object.References.AddProject($domainProject) | Out-Null
         }
     }
 
-    if (-not $projectName.Contains('Bootstrapper')) {
+    if (-not $projectName.Contains('Bootstrapper'))
+    {
         Write-Host "Installing bootstrapper package: $packageIdBootstrapper."
         Install-Package -Id $packageIdBootstrapper -ProjectName $projectName
     }
@@ -1244,31 +1282,37 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $stopwatch.Stop()
     Write-Host "-----======>>>>>FINISHED - Total time: $($stopwatch.Elapsed) to add $projectName."   
     
-    if ($addTestProject -and (-not $projectName.EndsWith('.Test')) -and (-not $projectName.EndsWith('.Tests'))) {
+    if ($addTestProject -and (-not $projectName.EndsWith('.Test')) -and (-not $projectName.EndsWith('.Tests')))
+    {
         # auto-create a Test project and add reference to the non-test project
         $testProjectName = "$projectName.Test"
         VisualStudio-AddNewProjectAndConfigure -projectName $testProjectName -projectKind "$projectKind.Test" -addTestProject $false
         $testProject = VisualStudio-GetProjectFromSolution -projectName $testProjectName
         
-        if ($isDomainProject) {
+        if ($isDomainProject)
+        {
             $bsonSuffix = '.Serialization.Bson'
             $jsonSuffix = '.Serialization.Json'
             $domainSuffix = '.Domain'
             
             # Domain projects also need a reference to the serialization configuration projects
             $bsonProjectName = $projectName
-            if ($bsonProjectName.EndsWith($domainSuffix)) {
+            if ($bsonProjectName.EndsWith($domainSuffix))
+            {
                 $bsonProjectName = $bsonProjectName.Replace($domainSuffix, $bsonSuffix)
             }
-            else {
+            else
+            {
                 $bsonProjectName = $bsonProjectName + $bsonSuffix
             }
 
             $jsonProjectName = $projectName
-            if ($jsonProjectName.EndsWith($domainSuffix)) {
+            if ($jsonProjectName.EndsWith($domainSuffix))
+            {
                 $jsonProjectName = $jsonProjectName.Replace($domainSuffix, $jsonSuffix)
             }
-            else {
+            else
+            {
                 $jsonProjectName = $jsonProjectName + $jsonSuffix
             }
             VisualStudio-AddNewProjectAndConfigure -projectName $bsonProjectName -projectKind 'Serialization.Bson' -addTestProject $false
@@ -1280,14 +1324,15 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
             $jsonProject = VisualStudio-GetProjectFromSolution -projectName $jsonProjectName
             $testProject.Object.References.AddProject($jsonProject) | Out-Null
         }
-        else {
+        else
+        {
             # Domain project will already be referenced but non-domain test projects will need a reference to their non-test version
 			
-            # need to refetch project because $project is null when we get here
-            $project = VisualStudio-GetProjectFromSolution -projectName $projectName
+			# need to refetch project because $project is null when we get here
+			$project = VisualStudio-GetProjectFromSolution -projectName $projectName
 			
-            Write-Output "Adding reference to project ($($project.ProjectName)) in test project ($($testProject.ProjectName))."
-            $testProject.Object.References.AddProject($project) | Out-Null
+			Write-Output "Adding reference to project ($($project.ProjectName)) in test project ($($testProject.ProjectName))."
+			$testProject.Object.References.AddProject($project) | Out-Null
         }
     }
 }
