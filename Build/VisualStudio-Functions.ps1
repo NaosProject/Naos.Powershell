@@ -60,7 +60,7 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
 
             Write-Output "Adding any root files in ($solutionDirectory) as 'Solution Items'."
             Write-Output ''
-            $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.EndsWith('.sln'))  } | %{$_.FullName}
+            $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.EndsWith('.sln')) -and $(-not $_.FullName.EndsWith('.user'))  } | %{$_.FullName}
             $repoRootFiles | %{
                 $filePath = $_
                 $solutionItemsFolderName = 'Solution Items'
