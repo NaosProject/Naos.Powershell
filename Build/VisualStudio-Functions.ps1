@@ -615,6 +615,18 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
     Write-Output ''
 }
 
+function VisualStudio-RunCodeGenForModelsOnDomainProject([boolean] $includeSerializationTesting = $true)
+{
+    # Arrange
+    $solution = $DTE.Solution
+    $solutionDirectory = Split-Path $solution.FileName()
+    $solutionFileName = Split-Path $solution.FileName -Leaf
+    $solutionFileNameWithoutExtension = $solutionFileName.Replace('.sln','')
+    $projectName = "$solutionFileNameWithoutExtension.Domain"
+    $testProjectName = "$solutionFileNameWithoutExtension.Domain.Test"
+    VisualStudio-RunCodeGenForModels -projectName $projectName -testProjectName $testProjectName -includeSerializationTesting $includeSerializationTesting
+}
+
 function VisualStudio-RunCodeGenForModels([string] $projectName, [string] $testProjectName = $null, [boolean] $includeSerializationTesting = $true)
 {    
     if ([string]::IsNullOrWhitespace($projectName))
