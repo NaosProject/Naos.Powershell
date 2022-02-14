@@ -189,10 +189,10 @@ function Nuget-CreateRecipeNuSpecInFolder([string] $recipeFolderPath, [string] $
 			$relativeFilePathToRecipeDirectory = $relativeFilePathToRecipeDirectory.Substring(1, $relativeFilePathToRecipeDirectory.Length - 1)
 		}
 		
-		$frameWorkPiece = 'net461\'
+		$frameWorkPiece = 'net462\'
 		if ($relativeFilePathToRecipeDirectory.StartsWith('.config'))
 		{
-			$frameWorkPiece = '' # shouldn't need anything for raw content...
+			# $frameWorkPiece = '' # shouldn't need anything for raw content - this is disabled because if you run .recipes side by side with .config then you want them both to be under a framework directory so we are putting all in a framework directory to not have to differentiate...
 			
 			$needsInstall = $true
 			$guid = [System.Guid]::NewGuid().ToString().Replace('-', '')
