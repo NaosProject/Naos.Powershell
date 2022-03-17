@@ -1166,10 +1166,15 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     $solutionName = (Split-Path $solution.FileName -Leaf).Replace('.sln', '')
 
     $projectDirectory = Join-Path $solutionDirectory $projectName
-    
+    $projectTemplateKind = $projectKind
+    if ($projectTemplateKind -eq 'SqlServer' -or $projectTemplateKind -eq 'Handler')
+    {
+        # The project template used will be a console appliation along with the SqlServer or Handler bootstrapper.
+        $projectTemplateKind = 'Console'
+    }
 
     $packageIdBootstrapper = "$organizationPrefix.Bootstrapper.Recipes.$projectKind"
-    $packageIdTemplate = "$organizationPrefix.Build.Conventions.VisualStudioProjectTemplates.$projectKind"
+    $packageIdTemplate = "$organizationPrefix.Build.Conventions.VisualStudioProjectTemplates.$projectTemplateKind"
 
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -1187,7 +1192,7 @@ function VisualStudio-AddNewProjectAndConfigure([string] $projectName, [string] 
     }
 
     $packageDirectory = (ls $tempDirectory).FullName # we can only do this b/c there are no dependencies and it will revert to the directory information
-    $templateFilePath = Join-Path $packageDirectory "$projectKind\template.vstemplate"
+    $templateFilePath = Join-Path $packageDirectory "$projectTemplateKind\template.vstemplate"
     File-ThrowIfPathMissing -path $templateFilePath -because "'$packageIdTemplate' should contain the template."
     
     $packageDirectoryName = Split-Path $packageDirectory -Leaf
