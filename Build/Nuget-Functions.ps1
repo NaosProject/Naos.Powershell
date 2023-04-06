@@ -324,27 +324,7 @@ function Nuget-CreateNuSpecExternalWrapper([string] $externalId, [string] $versi
 	$contents | Out-File $outputFile
 }
 
-function Nuget-UpdateRepositoryUrlOnNuSpec([string] $repositoryUrl, [string] $nuspecFile)
-{
-	[xml] $xml = Get-Content $nuspecFile
-	$repositoryUrlNode = $xml.SelectSingleNode('package/metadata/RepositoryUrl')
-    if ($repositoryUrlNode -eq $null)
-    {
-        $metadataNode = $xml.SelectSingleNode('package/metadata')
-        $repositoryUrlNode = $xml.CreateElement('RepositoryUrl')
-    	$repositoryUrlNode.InnerText = $repositoryUrl
-
-        [void]$metadataNode.AppendChild($repositoryUrlNode)
-    }
-    else
-    {
-	    $repositoryUrlNode.InnerText = $repositoryUrl
-    }
-    
-	$xml.Save($nuspecFile)
-}
-
-function Nuget-UpdateRepositoryOnNuSpec([string] $type, [string] $url, [string] $commit, [string] $nuspecFile)
+function Nuget-UpdateRepositoryOnNuSpec([string] $type, [string] $url, [string] $branch, [string] $commit, [string] $nuspecFile)
 {
 	[xml] $xml = Get-Content $nuspecFile
 	$repositoryNode = $xml.SelectSingleNode('package/metadata/repository')
@@ -354,6 +334,10 @@ function Nuget-UpdateRepositoryOnNuSpec([string] $type, [string] $url, [string] 
         $repositoryNode = $xml.CreateElement('repository')
    		$repositoryNode.SetAttribute('type', "$type")
    		$repositoryNode.SetAttribute('url', "$url")
+		if(-not [String]::IsNullOrEmpty($branch))
+        {
+            $repositoryNode.SetAttribute('branch', "$branch")
+        }
    		$repositoryNode.SetAttribute('commit', "$commit")
 
         [void]$metadataNode.AppendChild($repositoryNode)
@@ -362,6 +346,10 @@ function Nuget-UpdateRepositoryOnNuSpec([string] $type, [string] $url, [string] 
     {
    		$repositoryNode.SetAttribute('type', "$type")
    		$repositoryNode.SetAttribute('url', "$url")
+		if(-not [String]::IsNullOrEmpty($branch))
+        {
+            $repositoryNode.SetAttribute('branch', "$branch")
+        }
    		$repositoryNode.SetAttribute('commit', "$commit")
     }
     
