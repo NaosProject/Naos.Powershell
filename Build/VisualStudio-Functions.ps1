@@ -31,7 +31,7 @@ function VisualStudio-PrePreCommit()
     VisualStudio-PreCommit -updateCorePackages $false -runRepoConfig $false -runReleaseBuild $false -keepTrying $true
 }
 
-function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true, [boolean] $keepTrying = $false)
+function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true, [boolean] $keepTrying = $false, [boolean] $noPrompt = $false)
 {
     do
     {
@@ -236,8 +236,16 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                 $command = $commandSplit[1]
 
                 Write-Output $message
-                Write-Output "Run command [y]? $command"
-                $answer = Read-Host
+                if ($noPrompt -eq $true)
+                {
+                    Write-Output "Running command since 'noPrompt' set to true."
+                    $answer = 'y'
+                }
+                else
+                {
+                    Write-Output "Run command [y]? $command"
+                    $answer = Read-Host
+                }
                 if ($answer -eq 'y')
                 {
                     $commandSuccess = $false
@@ -271,8 +279,16 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
                                 $commandAgain = "Uninstall-Package -Id $offendingPackage -ProjectName $projectName"
                             
                                 Write-Output $commandErrorString
-                                Write-Output "Run command [y]? $commandAgain"
-                                $answer = Read-Host
+                                if ($noPrompt -eq $true)
+                                {
+                                    Write-Output "Running command since 'noPrompt' set to true."
+                                    $answer = 'y'
+                                }
+                                else
+                                {
+                                    Write-Output "Run command [y]? $commandAgain"
+                                    $answer = Read-Host
+                                }
                                 if ($answer -eq 'y')
                                 {
                                     $scriptBlockAgain = [scriptblock]::Create("$commandAgain -ErrorAction Stop")
