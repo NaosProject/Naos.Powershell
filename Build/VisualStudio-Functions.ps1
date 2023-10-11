@@ -57,16 +57,17 @@ function VisualStudio-PreCommit(
 
 
             Write-Output "Checking for projects in solution directory '$solutionDirectory' that are NOT in solution '$solutionName' ($solutionFilePath)."
-            $directoriesToIgnore = @($nuGetConstants.Directories.Packages, '.vs') # Directories that should not be considered when looking for rogue project directories on disk.
-            $projectsFromSolution = $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{ Split-Path $_.FullName }
-            $projectsOnDisk = ls $solutionDirectory | ?{ $_.PSIsContainer } | ?{-not $directoriesToIgnore.Contains($_.Name)} | %{ $_.FullName }
-            $projectsOnDiskButNotSolution = $projectsOnDisk | ?{ -not $projectsFromSolution.Contains($_) }
-            if ($projectsOnDiskButNotSolution.Count -ne 0)
-            Write-Output ''
             if ($checkForOrphanedProjects)
             {
-                $projectsOnDiskError = [String]::Join(', ', $projectsOnDiskButNotSolution)
-                throw "Founds project directories on disk that are not in the solution; $projectsOnDiskError"
+                $directoriesToIgnore = @($nuGetConstants.Directories.Packages, '.vs') # Directories that should not be considered when looking for rogue project directories on disk.
+                $projectsFromSolution = $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{ Split-Path $_.FullName }
+                $projectsOnDisk = ls $solutionDirectory | ?{ $_.PSIsContainer } | ?{-not $directoriesToIgnore.Contains($_.Name)} | %{ $_.FullName }
+                $projectsOnDiskButNotSolution = $projectsOnDisk | ?{ -not $projectsFromSolution.Contains($_) }
+                if ($projectsOnDiskButNotSolution.Count -ne 0)
+                {
+                    $projectsOnDiskError = [String]::Join(', ', $projectsOnDiskButNotSolution)
+                    throw "Founds project directories on disk that are not in the solution; $projectsOnDiskError"
+                }
             }
             else
             {
