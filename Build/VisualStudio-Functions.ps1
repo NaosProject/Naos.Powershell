@@ -8,6 +8,8 @@ $visualStudioConstants = @{
 	}
 }
 
+$solutionItemsProjectName = 'Solution Items'
+
 function VisualStudio-DeepCleanSolution()
 {
     $solution = $DTE.Solution
@@ -28,10 +30,16 @@ function VisualStudio-DeepCleanSolution()
 
 function VisualStudio-PrePreCommit()
 {
-    VisualStudio-PreCommit -updateCorePackages $false -runRepoConfig $false -runReleaseBuild $false -keepTrying $true
+    VisualStudio-PreCommit -updateCorePackages $false -runRepoConfig $false -runReleaseBuild $false -checkForOrphanedProjects $false -keepTrying $true
 }
 
-function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean] $runRepoConfig = $true, [boolean] $runReleaseBuild = $true, [boolean] $keepTrying = $false, [boolean] $noPrompt = $false)
+function VisualStudio-PreCommit(
+[boolean] $updateCorePackages = $true,
+[boolean] $runRepoConfig = $true,
+[boolean] $runReleaseBuild = $true,
+[boolean] $checkForOrphanedProjects = $true,
+[boolean] $keepTrying = $false,
+[boolean] $noPrompt = $false)
 {
     do
     {
@@ -51,9 +59,15 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
             $projectsOnDisk = ls $solutionDirectory | ?{ $_.PSIsContainer } | ?{-not $directoriesToIgnore.Contains($_.Name)} | %{ $_.FullName }
             $projectsOnDiskButNotSolution = $projectsOnDisk | ?{ -not $projectsFromSolution.Contains($_) }
             if ($projectsOnDiskButNotSolution.Count -ne 0)
+            Write-Output ''
+            if ($checkForOrphanedProjects)
             {
                 $projectsOnDiskError = [String]::Join(', ', $projectsOnDiskButNotSolution)
                 throw "Founds project directories on disk that are not in the solution; $projectsOnDiskError"
+            }
+            else
+            {
+                Write-Output '! Skipping because (checkForOrphanedProjects -eq $false)'
             }
             Write-Output ''
             Write-Output ''
@@ -63,11 +77,10 @@ function VisualStudio-PreCommit([boolean] $updateCorePackages = $true, [boolean]
             $repoRootFiles = ls $solutionDirectory | ?{ $(-not $_.PSIsContainer) -and $(-not $_.FullName.EndsWith('.sln')) -and $(-not $_.FullName.EndsWith('.user'))  } | %{$_.FullName}
             $repoRootFiles | %{
                 $filePath = $_
-                $solutionItemsFolderName = 'Solution Items'
-                $solutionItemsProject = $solution.Projects | ?{$_.ProjectName -eq $solutionItemsFolderName}
+                $solutionItemsProject = $solution.Projects | ?{$_.ProjectName -eq $solutionItemsProjectName}
                 if ($solutionItemsProject -eq $null)
                 {
-                    $solutionItemsProject = $solution.AddSolutionFolder($solutionItemsFolderName)
+                    $solutionItemsProject = $solution.AddSolutionFolder($solutionItemsProjectName)
                 }
 
                 $solutionItemsProject.ProjectItems.AddFromFile($filePath) | Out-Null
