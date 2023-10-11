@@ -41,6 +41,9 @@ function VisualStudio-PreCommit(
 [boolean] $keepTrying = $false,
 [boolean] $noPrompt = $false)
 {
+    # Allow skipping in a session to deal with potential out of order uninstalls...
+    $commandSkipList = New-Object 'System.Collections.Generic.List[String]'
+
     do
     {
         try
@@ -148,7 +151,7 @@ function VisualStudio-PreCommit(
             }
             
             Write-Output ''
-            VisualStudio-CheckNuGetPackageDependencies
+            VisualStudio-CheckNuGetPackageDependencies -commandSkipList $commandSkipList
 
             Write-Output "Updating recipe NuSpec dependency versions to match packages for all projects in solution '$solutionName' ($solutionFilePath)."
             $solution.Projects | ?{-not [String]::IsNullOrWhitespace($_.FullName)} | %{
@@ -256,7 +259,7 @@ function VisualStudio-PreCommit(
                 }
                 else
                 {
-                    Write-Output "Run command [y]? $command"
+                    Write-Output "Run command [y]es or [s]kip? $command"
                     $answer = Read-Host
                 }
                 if ($answer -eq 'y')
@@ -314,6 +317,11 @@ function VisualStudio-PreCommit(
                             }
                         }
                     }
+                }
+                elseif ($answer -eq 's')
+                {
+                    Write-Output "Skipping $command"
+                    $commandSkipList.Add($command)
                 }
                 else
                 {
@@ -393,12 +401,17 @@ function VisualStudio-RestoreNuGetPackages()
     File-RunScriptBlockMappingDirectoryToDrive -directoryPath $solutionDirectory -scriptBlock $restoreCommand
 }
 
-function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [boolean] $uninstall = $false)
+function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $null, [boolean] $uninstall = $false, [object] $commandSkipList = $null)
 {
     if (($projectName -ne $null) -and ($projectName.StartsWith('.\')))
     {
         # compensate for if auto complete was used which will do the directory in context of the solution folder (strictly a convenience).
         $projectName = $projectName.SubString(2, $projectName.Length - 2)
+    }
+    
+    if ($commandSkipList -eq $null)
+    {
+        $commandSkipList = New-Object 'System.Collections.Generic.List[String]'
     }
     
     Write-Output ''
@@ -491,7 +504,10 @@ function VisualStudio-CheckNuGetPackageDependencies([string] $projectName = $nul
             $version = $expectedPackageIdsFromProjectReferences[$id]
             if (-not $packageIdsInProject.Contains($id))
             {
-                throw "    Expected a NuGet reference to $_; run Install-Package -Id $id -Version $version -ProjectName $projectName"
+                if (-not $commandSkipList.Contains("Install-Package -Id $id -Version $version -ProjectName $projectName"))
+                {
+                    throw "    Expected a NuGet reference to $_; run Install-Package -Id $id -Version $version -ProjectName $projectName"
+                }
             }
         }
         
