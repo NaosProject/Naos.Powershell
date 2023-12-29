@@ -241,6 +241,7 @@ Write-Output 'END Cleaning Debug For All Projects'
 
 Write-Output 'BEGIN Building Release For All Projects'
 	$msBuildReleasePropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
+	$msBuildReleasePropertiesDictionary.Add('Version', $Version)
 	$msBuildReleasePropertiesDictionary.Add('Configuration', 'release')
 	$msBuildReleasePropertiesDictionary.Add('DebugType', 'pdbonly')
 	$msBuildReleasePropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
@@ -255,6 +256,7 @@ Write-Output 'END Building Release For All Projects'
 
 Write-Output 'BEGIN Building Debug For All Projects'
 	$msBuildDebugPropertiesDictionary = New-Object "System.Collections.Generic.Dictionary``2[[System.String], [System.String]]"
+	$msBuildDebugPropertiesDictionary.Add('Version', $Version)
 	$msBuildDebugPropertiesDictionary.Add('Configuration', 'debug')
 	$msBuildDebugPropertiesDictionary.Add('TreatWarningsAsErrors', $TreatBuildWarningsAsErrors)
 	$msBuildDebugPropertiesDictionary.Add('RunCodeAnalysis', $RunCodeAnalysis)
@@ -300,6 +302,8 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 	$projectFilePaths | 
 	%{
 		$projFilePath = Resolve-Path $_
+		$projFileItem = Get-Item $projFilePath
+		Write-Output "  - Evaluating '$($projFileItem.Name)'"
 		$isWebProject = MsBuild-IsWebProject -projectFilePath $projFilePath
 		$isConsoleApp = MsBuild-IsConsoleApp -projectFilePath $projFilePath
 		$isLibrary = (MsBuild-IsLibrary -projectFilePath $projFilePath)
@@ -314,19 +318,35 @@ Write-Output 'BEGIN Create NuGet Packages for Libraries, Published Web Projects,
 		$webPublishPath = Join-Path $WorkingDirectory "$($projFileItem.BaseName)_$innerPackageDirForWebPackage"
 		$shouldBuildPackageFromProject = (Test-Path $nuspecFilePath) -or ($isNonTestConsoleApp) -or ($isLibraryToAutoPublishToNuget) -or ($isWebProject -and (Test-Path $webPublishPath))
 	    $shouldBuildRecipesFromProject = ($recipeNuspecs -ne $null)
-		
 		if ($shouldBuildPackageFromProject -or $shouldBuildRecipesFromProject)
 		{
+			Write-Output "    - Determined need to produce packages"
 			# we do this recursive because we want n level deep dependencies to make sure all packages needed make it to the nuspec file
 			$projectReferences = MsBuild-GetProjectReferences -projectFilePath $projFilePath -recursive $true
 			$framework = MsBuild-GetTargetFramework -projectFilePath $projFilePath
-			$frameworkThinned = $framework.Replace('v', '').Replace('.', '') # change 'v4.0' to '40'
-			$targetLibDir = "lib\net$frameworkThinned"
-
+			$binRelease = ''
+			$targetLibDir = ''
+			if ($framework.StartsWith('v'))
+			{
+				# update framework directory for older frameworks
+				$frameworkThinned = $framework.Replace('v', '').Replace('.', '') # change 'v4.0' to '40'
+				$binRelease = Join-Path (Join-Path (Split-Path $projFilePath) 'bin') 'release'
+				$targetLibDir = "lib\net$frameworkThinned"
+			}
+			elseif ($framework.StartsWith('net'))
+			{
+				$binRelease = Join-Path (Join-Path (Join-Path (Split-Path $projFilePath) 'bin') 'release') $framework
+				$targetLibDir = "lib\$framework"
+			}
+			else
+			{
+				throw "Unexpected targetFramework: $framework"
+			}
+			
 			$outputFilesPackageFolderMap = New-Object System.Collections.HashTable (@{})
 			[string] $packageTargetDir = $null # need to set for website, default will work fine for libraries so leave null for that
 			[string] $maintainSubpathFrom = $null # need to keep sub pathing for websites because files will duplicate (this isn't an issue for libraries so ignore)
-			$binRelease = Join-Path (Join-Path (Split-Path $projFilePath) 'bin') 'release'
+			
 			$pathLessOutputFiles = MsBuild-GetOutputFiles -projectFilePath $projFilePath
 			
 			$projOutputFiles = $pathLessOutputFiles | %{Join-Path $binRelease $_}

@@ -163,7 +163,27 @@ function MsBuild-GetPropertyGroupProperty([string] $projectFilePath, [string] $p
 
 function MsBuild-GetTargetFramework([string] $projectFilePath)
 {
-	return MsBuild-GetPropertyGroupProperty -projectFilePath $projectFilePath -propertyName 'TargetFrameworkVersion'
+	$targetFrameworkVersion = MsBuild-GetPropertyGroupProperty -projectFilePath $projectFilePath -propertyName 'TargetFrameworkVersion'
+	$targetFramework = MsBuild-GetPropertyGroupProperty -projectFilePath $projectFilePath -propertyName 'TargetFramework'
+	if ((($targetFrameworkVersion -eq $null) -or ($targetFrameworkVersion -eq '')) -and ($targetFramework -ne $null) -and ($targetFramework -ne ''))
+	{
+		return $targetFramework
+	}
+	
+	if ((($targetFramework -eq $null) -or ($targetFramework -eq '')) -and ($targetFrameworkVersion -ne $null) -and ($targetFrameworkVersion -ne ''))
+	{
+		return $targetFrameworkVersion
+	}
+	
+	if (($targetFramework -ne $null) -and ($targetFramework -ne '') -and ($targetFrameworkVersion -ne $null) -and ($targetFrameworkVersion -ne ''))
+	{
+		throw "Found specified targetFramework: $targetFramework AND targetFrameworkVersion: $targetFrameworkVersion which is not supported."
+	}
+	
+	if (($targetFramework -eq $null) -and ($targetFramework -eq '') -and ($targetFrameworkVersion -eq $null) -and ($targetFrameworkVersion -eq ''))
+	{
+		throw "Found NO specified targetFramework OR targetFrameworkVersion which is not supported."
+	}	
 }
 
 function MsBuild-GetTargetFrameworkIdentifier([string] $projectFilePath)
@@ -178,7 +198,17 @@ function MsBuild-GetOutputType([string] $projectFilePath)
 
 function MsBuild-GetAssemblyName([string] $projectFilePath)
 {
-	return MsBuild-GetPropertyGroupProperty -projectFilePath $projectFilePath -propertyName 'AssemblyName'
+	$assemblyName = MsBuild-GetPropertyGroupProperty -projectFilePath $projectFilePath -propertyName 'AssemblyName'
+	if (($assemblyName -ne $null) -and ($assemblyName -ne ''))
+	{
+		return $assemblyName
+	}
+	else
+	{
+		$projectItem = Get-Item $projectFilePath
+		$result = $projectItem.Name.Replace('.csproj', '').Replace('.vbproj', '')
+		return $result
+	}
 }
 
 function MsBuild-GetProjectTypeGuids([string] $projectFilePath)
@@ -215,13 +245,16 @@ function MsBuild-IsSilverlightApplication([string] $projectFilePath)
 function MsBuild-IsLibrary([string] $projectFilePath)
 {
 	$type = MsBuild-GetOutputType -projectFilePath $projectFilePath
+	$targetFramework = MsBuild-GetTargetFramework -projectFilePath $projectFilePath
 	$typeGuids = MsBuild-GetProjectTypeGuids -projectFilePath $projectFilePath
 	$silverlightApplication = MsBuild-IsSilverlightApplication -projectFilePath $projectFilePath
 	$webApplication = MsBuild-IsWebProject -projectFilePath $projectFilePath
 	$isMsTest = MsBuild-IsMsTest -projectFilePath $projectFilePath
+
 	# websites also output dll type so need to check both (the guids are for "Web Application" and "Web Site" respectively.
+	# Newer .NET libraries (net6.0, net7.0, net8.0, etc.) do NOT specify output type for libraries.
 	return (
-				($type -eq 'Library') -and 
+				(($type -eq 'Library') -or ($targetFramework.StartsWith('net'))) -and 
 				(-not $silverlightApplication) -and 
 				(-not $webApplication) -and 
 				(-not $isMsTest) 

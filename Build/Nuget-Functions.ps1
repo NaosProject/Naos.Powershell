@@ -448,6 +448,22 @@ function Nuget-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 			}
 		}
 	}
+	else
+	{
+		# See if it its a new project type with package references in the project file.
+		[xml]$projFileXml = Get-Content (Resolve-Path($projFilePath))
+		$projFileXml.Project.ItemGroup | %{ $_.PackageReference } | %{
+			$packageNode = $_
+			if ($packageNode.PrivateAssets -ne 'all')
+			{
+				# Ensure it is not a content Package
+				$newElement = $nuspec.CreateElement('dependency')
+				$newElement.SetAttribute('id', $packageNode.Include)
+				$newElement.SetAttribute('version', $packageNode.Version)
+				[void]$deps.AppendChild($newElement)
+			}
+		}
+	}
 	
 	# Add project references as
 	$projectReferences | %{
@@ -466,13 +482,40 @@ function Nuget-CreateNuSpecFileFromProject([string] $projFilePath, [System.Array
 	$author.InnerXml = $authors
 
 	# Remove items not being used
-	[void]$nuspec.package.metadata.RemoveChild($nuspec.SelectSingleNode('package/metadata/title'))
-	[void]$nuspec.package.metadata.RemoveChild($nuspec.SelectSingleNode('package/metadata/owners'))
-	[void]$nuspec.package.metadata.RemoveChild($nuspec.SelectSingleNode('package/metadata/licenseUrl'))
-	[void]$nuspec.package.metadata.RemoveChild($nuspec.SelectSingleNode('package/metadata/projectUrl'))
-	[void]$nuspec.package.metadata.RemoveChild($nuspec.SelectSingleNode('package/metadata/iconUrl'))
-	[void]$nuspec.package.metadata.RemoveChild($nuspec.SelectSingleNode('package/metadata/tags'))
-	[void]$nuspec.package.metadata.RemoveChild($nuspec.SelectSingleNode('package/metadata/releaseNotes'))
+	$titleNode = $nuspec.SelectSingleNode('package/metadata/title')
+	if ($titleNode -ne $null) {
+		[void]$nuspec.package.metadata.RemoveChild($titleNode)
+	}
+	
+	$ownersNode = $nuspec.SelectSingleNode('package/metadata/owners')
+	if ($ownersNode -ne $null) {
+		[void]$nuspec.package.metadata.RemoveChild($ownersNode)
+	}
+	
+	$licenseNode = $nuspec.SelectSingleNode('package/metadata/licenseUrl')
+	if ($licenseNode -ne $null) {
+		[void]$nuspec.package.metadata.RemoveChild($licenseNode)
+	}
+	
+	$projectUrlNode = $nuspec.SelectSingleNode('package/metadata/projectUrl')
+	if ($projectUrlNode -ne $null) {
+		[void]$nuspec.package.metadata.RemoveChild($projectUrlNode)
+	}
+	
+	$iconUrlNode = $nuspec.SelectSingleNode('package/metadata/iconUrl')
+	if ($iconUrlNode -ne $null) {
+		[void]$nuspec.package.metadata.RemoveChild($iconUrlNode)
+	}
+	
+	$tagsNode = $nuspec.SelectSingleNode('package/metadata/tags')
+	if ($tagsNode -ne $null) {
+		[void]$nuspec.package.metadata.RemoveChild($tagsNode)
+	}
+
+	$releaseNotesNode = $nuspec.SelectSingleNode('package/metadata/releaseNotes')
+	if ($releaseNotesNode -ne $null) {
+		[void]$nuspec.package.metadata.RemoveChild($releaseNotesNode)
+	}
 
 	if ($deps.HasChildNodes)
 	{
